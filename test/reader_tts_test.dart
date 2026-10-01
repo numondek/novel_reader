@@ -1,10 +1,15 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novel_reader/features/reader/domain/services/media_session.dart';
 import 'package:novel_reader/features/reader/domain/services/text_to_speech.dart';
 import 'package:novel_reader/features/reader/presentation/providers/reader_tts_controller.dart';
+import 'package:novel_reader/features/settings/presentation/providers/settings_provider.dart';
 
 class _FakeTts implements TextToSpeech {
   String? language;
   double? rate;
+  String? voiceName;
+  String? voiceLocale;
   int stopCalls = 0;
 
   final List<String> spoken = <String>[];
@@ -22,6 +27,15 @@ class _FakeTts implements TextToSpeech {
   Future<void> setSpeechRate(double rate) async {
     this.rate = rate;
   }
+
+  @override
+  Future<void> setVoice(String name, String locale) async {
+    voiceName = name;
+    voiceLocale = locale;
+  }
+
+  @override
+  Future<List<TtsVoice>> getVoices() async => const [];
 
   @override
   Future<void> speak(String text) async {
@@ -50,6 +64,35 @@ class _FakeTts implements TextToSpeech {
 }
 
 Future<void> flush() => Future<void>.delayed(Duration.zero);
+
+class _FakeMediaSession implements MediaSession {
+  MediaSessionDelegate? delegate;
+  String? title;
+  String? subtitle;
+  bool? playing;
+  int hideCalls = 0;
+
+  @override
+  void setDelegate(MediaSessionDelegate? delegate) {
+    this.delegate = delegate;
+  }
+
+  @override
+  void setChapterTitle(String title, {String? subtitle}) {
+    this.title = title;
+    this.subtitle = subtitle;
+  }
+
+  @override
+  void setPlaying(bool playing) {
+    this.playing = playing;
+  }
+
+  @override
+  void hide() {
+    hideCalls += 1;
+  }
+}
 
 void main() {
   test('speaks CJK text with the Chinese language', () async {
@@ -175,5 +218,177 @@ void main() {
     expect(controller.state.isPlaying, isFalse);
     expect(controller.state.isPaused, isTrue);
     expect(controller.state.currentIndex, 0);
+  });
+
+  test('applies the configured speech rate', () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(
+      tts: fake,
+      settings: () => const AppSettings(speechRate: 0.8),
+    );
+
+    await controller.play(['Hello world']);
+
+    expect(fake.rate, 0.8);
+  });
+
+  test('applies a selected voice when it matches the language',
+      () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(
+      tts: fake,
+      settings: () => const AppSettings(
+        voiceName: 'Alice',
+        voiceLocale: 'en-US',
+      ),
+    );
+
+    await controller.play(['Hello world']);
+
+    expect(fake.language, 'en-US');
+    expect(fake.voiceName, 'Alice');
+    expect(fake.voiceLocale, 'en-US');
+  });
+
+  test('skips the selected voice for a different language',
+      () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(
+      tts: fake,
+      settings: () => const AppSettings(
+        voiceName: 'Alice',
+        voiceLocale: 'en-US',
+      ),
+    );
+
+    await controller.play(['你好世界']);
+
+    expect(fake.language, 'zh-CN');
+    expect(fake.voiceName, isNull);
+  });
+
+  test('completion re-applies rate before speaking the next paragraph',
+      () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(
+      tts: fake,
+      settings: () => const AppSettings(speechRate: 0.3),
+    );
+
+    await controller.play(['one', 'two']);
+    fake.completion!();
+    await flush();
+
+    expect(fake.rate, 0.3);
+    expect(fake.spoken, ['one', 'two']);
+  });
+
+  test('play publishes the chapter title and playing state', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['Hello'], title: 'Chapter 1');
+
+    expect(session.title, 'Chapter 1');
+    expect(session.playing, isTrue);
+    expect(session.hideCalls, 0);
+  });
+
+  test('pause reports the session as paused without hiding it', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['Hello'], title: 'Chapter 1');
+    await controller.pause();
+
+    expect(session.playing, isFalse);
+    expect(session.hideCalls, 0);
+  });
+
+  test('stop hides the media session', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['Hello'], title: 'Chapter 1');
+    await controller.stopAll();
+
+    expect(session.hideCalls, 1);
+    expect(controller.state.isPlaying, isFalse);
+  });
+
+  test('an engine error hides the media session', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['Hello'], title: 'Chapter 1');
+    fake.error!('Engine not available');
+    await flush();
+
+    expect(session.hideCalls, 1);
+  });
+
+  test('a system play command resumes paused narration', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['一', '二'], title: '第一章');
+    await controller.pause();
+
+    await session.delegate!.onPlay();
+
+    expect(controller.state.isPlaying, isTrue);
+    expect(fake.spoken.last, '一');
+    expect(session.playing, isTrue);
+  });
+
+  test('a system stop command ends narration and hides the session',
+      () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['Hello'], title: 'Chapter 1');
+
+    await session.delegate!.onStop();
+
+    expect(controller.state.isPlaying, isFalse);
+    expect(controller.state.isPaused, isFalse);
+    expect(session.hideCalls, 1);
+  });
+
+  test('a system skip command moves to the next paragraph', () async {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+    final controller = ReaderTtsController(tts: fake, mediaSession: session);
+
+    await controller.play(['一', '二']);
+
+    await session.delegate!.onSkipNext();
+
+    expect(controller.state.currentIndex, 1);
+    expect(fake.spoken, ['一', '二']);
+  });
+
+  test('disposal releases the media session delegate', () {
+    final fake = _FakeTts();
+    final session = _FakeMediaSession();
+
+    final container = ProviderContainer(
+      overrides: [
+        ttsServiceProvider.overrideWithValue(fake),
+        mediaSessionProvider.overrideWithValue(session),
+      ],
+    );
+
+    container.read(readerTtsControllerProvider.notifier);
+    expect(session.delegate, isNotNull);
+
+    container.dispose();
+    expect(session.delegate, isNull);
   });
 }

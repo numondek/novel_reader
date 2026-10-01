@@ -1,14 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../settings/presentation/providers/settings_provider.dart';
 import '../../../translation/domain/language_detector.dart';
 import '../../data/services/flutter_text_to_speech.dart';
+import '../../domain/services/media_session.dart';
 import '../../domain/services/text_to_speech.dart';
+
+final ttsServiceProvider = Provider<TextToSpeech>((ref) {
+  return FlutterTextToSpeech();
+});
+
+/// The OS media notification / quick settings bridge. Overridden in
+/// `main()` with a real audio_service-backed session.
+final mediaSessionProvider = Provider<MediaSession>((ref) {
+  return const NoopMediaSession();
+});
 
 final readerTtsControllerProvider =
     StateNotifierProvider<ReaderTtsController, ReaderTtsState>(
   (ref) {
     final controller = ReaderTtsController(
-      tts: FlutterTextToSpeech(),
+      tts: ref.read(ttsServiceProvider),
+      settings: () => ref.read(settingsProvider),
+      mediaSession: ref.read(mediaSessionProvider),
     );
 
     ref.onDispose(controller.stopAll);
@@ -47,18 +61,31 @@ class ReaderTtsState {
 
 /// Speaks chapter paragraphs one at a time so the reader can follow
 /// along, highlighting the paragraph currently being read.
-class ReaderTtsController extends StateNotifier<ReaderTtsState> {
-  ReaderTtsController({required TextToSpeech tts})
-      : _tts = tts,
+///
+/// Also mirrors its state to the OS [MediaSession] so narration can
+/// keep running in the background and be controlled from the media
+/// notification, quick settings, lock screen and headset buttons.
+class ReaderTtsController extends StateNotifier<ReaderTtsState>
+    implements MediaSessionDelegate {
+  ReaderTtsController({
+    required TextToSpeech tts,
+    AppSettings Function()? settings,
+    MediaSession? mediaSession,
+  })  : _tts = tts,
+        _settings = settings ?? (() => const AppSettings()),
+        _mediaSession = mediaSession ?? const NoopMediaSession(),
         super(const ReaderTtsState()) {
     _tts.onCompletion(_handleCompletion);
     _tts.onCancel(_handleCancel);
     _tts.onError(_handleError);
+    _mediaSession.setDelegate(this);
   }
 
   static const double speechRate = 0.5;
 
   final TextToSpeech _tts;
+  final AppSettings Function() _settings;
+  final MediaSession _mediaSession;
   List<String> _paragraphs = const [];
 
   /// Set by the reader page: called when the last paragraph of a
@@ -68,6 +95,7 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
   Future<void> play(
     List<String> paragraphs, {
     int startIndex = 0,
+    String? title,
   }) async {
     if (paragraphs.isEmpty) {
       return;
@@ -85,14 +113,49 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
         ? 'zh-CN'
         : 'en-US';
 
-    await _tts.setLanguage(language);
-    await _tts.setSpeechRate(speechRate);
+    await _applyVoiceSettings(language);
+
+    if (title != null) {
+      _mediaSession.setChapterTitle(title);
+    }
 
     state = ReaderTtsState(
       isPlaying: true,
       currentIndex: index,
     );
+    _mediaSession.setPlaying(true);
     await _tts.speak(paragraphs[index]);
+  }
+
+  /// Applies the user's rate and voice preferences, falling back to
+  /// the language default when no voice matches the language.
+  Future<void> _applyVoiceSettings(String language) async {
+    final settings = _settings();
+
+    await _tts.setLanguage(language);
+    await _tts.setSpeechRate(settings.speechRate);
+
+    final name = settings.voiceName;
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    final locale = settings.voiceLocale ?? '';
+    if (locale.isNotEmpty && !_sameLanguage(locale, language)) {
+      // The chosen voice cannot read this language.
+      return;
+    }
+
+    try {
+      await _tts.setVoice(name, locale);
+    } catch (_) {
+      // Voice unavailable: keep the language default.
+    }
+  }
+
+  bool _sameLanguage(String a, String b) {
+    return a.split('-').first.toLowerCase() ==
+        b.split('-').first.toLowerCase();
   }
 
   Future<void> pause() async {
@@ -106,6 +169,7 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
       isPlaying: false,
       isPaused: true,
     );
+    _mediaSession.setPlaying(false);
   }
 
   Future<void> resume() async {
@@ -126,7 +190,9 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
   }
 
   Future<void> stopAll() async {
-    if (state.isPlaying || state.isPaused) {
+    final wasActive = state.isPlaying || state.isPaused;
+
+    if (wasActive) {
       await _tts.stop();
     }
 
@@ -134,6 +200,10 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
 
     if (mounted) {
       state = const ReaderTtsState();
+    }
+
+    if (wasActive) {
+      _mediaSession.hide();
     }
   }
 
@@ -150,8 +220,21 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
       return;
     }
 
+    final text = _paragraphs[next];
     state = state.copyWith(currentIndex: next);
-    _tts.speak(_paragraphs[next]);
+
+    final language =
+        containsCjk(text) ? 'zh-CN' : 'en-US';
+
+    _applyVoiceSettings(language).whenComplete(() {
+      if (!mounted ||
+          !state.isPlaying ||
+          state.currentIndex != next) {
+        return;
+      }
+
+      _tts.speak(text);
+    });
   }
 
   void _handleCancel() {
@@ -160,6 +243,7 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
         isPlaying: false,
         isPaused: true,
       );
+      _mediaSession.setPlaying(false);
     }
   }
 
@@ -167,5 +251,27 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState> {
     _paragraphs = const [];
 
     state = ReaderTtsState(error: '$message');
+    _mediaSession.hide();
+  }
+
+  @override
+  Future<void> onPlay() => resume();
+
+  @override
+  Future<void> onPause() => pause();
+
+  @override
+  Future<void> onStop() => stopAll();
+
+  @override
+  Future<void> onSkipNext() => seek(state.currentIndex + 1);
+
+  @override
+  Future<void> onSkipPrevious() => seek(state.currentIndex - 1);
+
+  @override
+  void dispose() {
+    _mediaSession.setDelegate(null);
+    super.dispose();
   }
 }

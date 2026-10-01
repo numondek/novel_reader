@@ -6,6 +6,7 @@ import '../../../../app/theme/app_typography.dart';
 import '../../../novels/domain/models/read_novel.dart';
 import '../../../novels/presentation/providers/read_novels_provider.dart';
 import '../../../scraper/domain/models/extracted_chapter.dart';
+import '../../../settings/presentation/providers/settings_provider.dart';
 import '../providers/reader_controller.dart';
 import '../providers/reader_tts_controller.dart';
 
@@ -23,9 +24,6 @@ class ReaderPage extends ConsumerStatefulWidget {
 }
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
-  double _fontSize = 18;
-  bool _autoScroll = true;
-
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _paragraphKeys = <int, GlobalKey>{};
 
@@ -91,6 +89,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(readerControllerProvider);
     final chapter = state.chapter;
+    final settings = ref.watch(settingsProvider);
 
     ref.listen(readerControllerProvider, (previous, next) {
       final error = next.error;
@@ -133,7 +132,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         final paragraphs =
             next.translatedParagraphs ?? chapter.paragraphs;
 
-        _ttsController.play(paragraphs);
+        _ttsController.play(
+          paragraphs,
+          title: next.translatedTitle ?? chapter.title,
+        );
       }
     });
 
@@ -252,7 +254,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               _Paragraph(
                 key: _paragraphKey(index),
                 text: paragraphs[index],
-                fontSize: _fontSize,
+                fontSize: settings.fontSize.toDouble(),
                 isActive: state.activeParagraph == index,
                 onTap: () {
                   ref
@@ -272,7 +274,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         isPlaying: tts.isPlaying,
         isPaused: tts.isPaused,
         onPlayPause: () => _toggleSpeech(paragraphs),
-        autoScroll: _autoScroll,
+        autoScroll: settings.autoScroll,
         onToggleAutoScroll: _toggleAutoScroll,
         hasPrevious:
             chapter.previousChapterUrl != null && !state.isLoading,
@@ -288,11 +290,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _toggleAutoScroll() {
-    setState(() {
-      _autoScroll = !_autoScroll;
-    });
+    final notifier = ref.read(settingsProvider.notifier);
+    final next = !ref.read(settingsProvider).autoScroll;
 
-    if (_autoScroll) {
+    notifier.setAutoScroll(next);
+
+    if (next) {
       final tts = ref.read(readerTtsControllerProvider);
 
       if (tts.isPlaying || tts.isPaused) {
@@ -304,7 +307,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   /// Scrolls so the active paragraph is visible (kept around a
   /// quarter of the way down the viewport) while TTS is reading.
   void _scrollToParagraph(int index) {
-    if (!_autoScroll) {
+    if (!ref.read(settingsProvider).autoScroll) {
       return;
     }
 
@@ -536,8 +539,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _toggleSpeech(List<String> paragraphs) {
     final tts = ref.read(readerTtsControllerProvider);
-    final activeParagraph =
-        ref.read(readerControllerProvider).activeParagraph;
+    final reader = ref.read(readerControllerProvider);
+    final activeParagraph = reader.activeParagraph;
 
     if (tts.isPlaying) {
       _ttsController.pause();
@@ -547,11 +550,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _ttsController.play(
         paragraphs,
         startIndex: activeParagraph,
+        title: reader.translatedTitle ?? reader.chapter?.title,
       );
     }
   }
 
   void _showFontSizeSettings() {
+    var fontSize = ref.read(settingsProvider).fontSize;
+
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -569,12 +575,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   Slider(
                     min: 14,
                     max: 32,
-                    value: _fontSize,
+                    divisions: 18,
+                    value: fontSize.toDouble(),
                     onChanged: (value) {
                       setModalState(() {
-                        _fontSize = value;
+                        fontSize = value.round();
                       });
-                      setState(() {});
+
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setFontSize(value.round());
                     },
                   ),
                 ],

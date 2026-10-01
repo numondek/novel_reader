@@ -18,6 +18,43 @@ class FlutterTextToSpeech implements TextToSpeech {
   }
 
   @override
+  Future<void> setVoice(String name, String locale) async {
+    final voice = <String, String>{'name': name};
+    if (locale.isNotEmpty) {
+      voice['locale'] = locale;
+    }
+
+    await _tts.setVoice(voice);
+  }
+
+  @override
+  Future<List<TtsVoice>> getVoices() async {
+    try {
+      final raw = await _tts.getVoices;
+      if (raw is! List) {
+        return const [];
+      }
+
+      final voices = <TtsVoice>[];
+
+      for (final item in raw) {
+        if (item is! Map) continue;
+
+        final name = '${item['name'] ?? ''}';
+        final locale = '${item['locale'] ?? ''}';
+
+        if (name.isEmpty) continue;
+
+        voices.add(TtsVoice(name: name, locale: locale));
+      }
+
+      return voices;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
   Future<void> speak(String text) async {
     await _tts.speak(text);
   }

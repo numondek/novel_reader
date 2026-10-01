@@ -20,6 +20,12 @@ class _FakeTts implements TextToSpeech {
   Future<void> setSpeechRate(double rate) async {}
 
   @override
+  Future<void> setVoice(String name, String locale) async {}
+
+  @override
+  Future<List<TtsVoice>> getVoices() async => const [];
+
+  @override
   Future<void> speak(String text) async {}
 
   @override
