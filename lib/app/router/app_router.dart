@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../features/audio/presentation/pages/audio_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/library/presentation/pages/library_page.dart';
+import '../../features/library/presentation/pages/pdf_reader_page.dart';
 import '../../features/novels/presentation/pages/novel_import_page.dart';
 import '../../features/novels/presentation/pages/novels_page.dart';
 import '../../features/prefetch/presentation/pages/prefetch_page.dart';
@@ -33,6 +34,7 @@ class AppRouter extends RootStackRouter {
         AutoRoute(page: AudioRoute.page),
         AutoRoute(page: PrefetchRoute.page),
         AutoRoute(page: LibraryRoute.page),
+        AutoRoute(page: PdfReaderRoute.page),
         AutoRoute(page: SettingsRoute.page),
       ];
 }

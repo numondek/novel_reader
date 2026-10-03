@@ -122,6 +122,78 @@ class NovelsRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [PdfReaderPage]
+class PdfReaderRoute extends PageRouteInfo<PdfReaderRouteArgs> {
+  PdfReaderRoute({
+    Key? key,
+    required String path,
+    required String title,
+    int initialPage = 1,
+    List<PageRouteInfo>? children,
+  }) : super(
+         PdfReaderRoute.name,
+         args: PdfReaderRouteArgs(
+           key: key,
+           path: path,
+           title: title,
+           initialPage: initialPage,
+         ),
+         initialChildren: children,
+       );
+
+  static const String name = 'PdfReaderRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<PdfReaderRouteArgs>();
+      return PdfReaderPage(
+        key: args.key,
+        path: args.path,
+        title: args.title,
+        initialPage: args.initialPage,
+      );
+    },
+  );
+}
+
+class PdfReaderRouteArgs {
+  const PdfReaderRouteArgs({
+    this.key,
+    required this.path,
+    required this.title,
+    this.initialPage = 1,
+  });
+
+  final Key? key;
+
+  final String path;
+
+  final String title;
+
+  final int initialPage;
+
+  @override
+  String toString() {
+    return 'PdfReaderRouteArgs{key: $key, path: $path, title: $title, initialPage: $initialPage}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! PdfReaderRouteArgs) return false;
+    return key == other.key &&
+        path == other.path &&
+        title == other.title &&
+        initialPage == other.initialPage;
+  }
+
+  @override
+  int get hashCode =>
+      key.hashCode ^ path.hashCode ^ title.hashCode ^ initialPage.hashCode;
+}
+
+/// generated route for
 /// [PrefetchPage]
 class PrefetchRoute extends PageRouteInfo<void> {
   const PrefetchRoute({List<PageRouteInfo>? children})

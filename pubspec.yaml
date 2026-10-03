@@ -30,6 +30,9 @@ dependencies:
 
   connectivity_plus: ^6.1.4
   audio_service: ^0.18.19
+  file_picker: ^11.0.3
+  syncfusion_flutter_pdf: ^31.1.19
+  audio_session: ^0.2.4
 
 dev_dependencies:
   flutter_test:

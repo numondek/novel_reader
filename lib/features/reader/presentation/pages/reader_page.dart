@@ -9,15 +9,16 @@ import '../../../scraper/domain/models/extracted_chapter.dart';
 import '../../../settings/presentation/providers/settings_provider.dart';
 import '../providers/reader_controller.dart';
 import '../providers/reader_tts_controller.dart';
+import '../widgets/font_size_settings.dart';
+import '../widgets/reading_paragraph.dart';
+import '../widgets/reader_controls.dart';
+import '../widgets/tracker_line.dart';
 
 @RoutePage()
 class ReaderPage extends ConsumerStatefulWidget {
   final ExtractedChapter? chapter;
 
-  const ReaderPage({
-    super.key,
-    this.chapter,
-  });
+  const ReaderPage({super.key, this.chapter});
 
   @override
   ConsumerState<ReaderPage> createState() => _ReaderPageState();
@@ -62,8 +63,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
 
   void _handleChapterFinished() {
-    final nextUrl =
-        ref.read(readerControllerProvider).chapter?.nextChapterUrl;
+    final nextUrl = ref.read(readerControllerProvider).chapter?.nextChapterUrl;
 
     if (nextUrl == null) {
       return;
@@ -97,15 +97,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       if (error != null && error != previous?.error) {
         _pendingAutoPlayUrl = null;
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error)));
       }
 
       final chapter = next.chapter;
 
-      if (chapter != null &&
-          chapter.url != previous?.chapter?.url) {
+      if (chapter != null && chapter.url != previous?.chapter?.url) {
         _lastChapterUrl = chapter.url;
         _restoredParagraph = null;
         _lastReportedParagraph = null;
@@ -129,8 +128,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           !next.isTranslating) {
         _pendingAutoPlayUrl = null;
 
-        final paragraphs =
-            next.translatedParagraphs ?? chapter.paragraphs;
+        final paragraphs = next.translatedParagraphs ?? chapter.paragraphs;
 
         _ttsController.play(
           paragraphs,
@@ -140,10 +138,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     });
 
     ref.listen(readerTtsControllerProvider, (previous, next) {
-      final indexChanged =
-          next.currentIndex != previous?.currentIndex;
-      final startedPlaying =
-          next.isPlaying && previous?.isPlaying != true;
+      final indexChanged = next.currentIndex != previous?.currentIndex;
+      final startedPlaying = next.isPlaying && previous?.isPlaying != true;
 
       if ((indexChanged || startedPlaying) &&
           (next.isPlaying || next.isPaused)) {
@@ -155,84 +151,89 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }
 
       if (next.error != null && next.error != previous?.error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.error!)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(next.error!)));
       }
     });
 
     if (chapter == null) {
       if (widget.chapter != null) {
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
       }
 
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(
-          child: Text('No chapter available.'),
-        ),
+        body: const Center(child: Text('No chapter available.')),
       );
     }
 
     final title = state.translatedTitle ?? chapter.title;
 
-    final paragraphs =
-        state.translatedParagraphs ?? chapter.paragraphs;
+    final paragraphs = state.translatedParagraphs ?? chapter.paragraphs;
 
     final tts = ref.watch(readerTtsControllerProvider);
 
+    final narrationProgress =
+        paragraphs.isNotEmpty && (tts.isPlaying || tts.isPaused)
+            ? ((tts.currentIndex + 1) / paragraphs.length)
+                .clamp(0.0, 1.0)
+                .toDouble()
+            : null;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(4),
+          child:
+              state.isLoading
+                  ? const LinearProgressIndicator(minHeight: 4)
+                  : Container(),
         ),
-        bottom: state.isLoading
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(minHeight: 4),
-              )
-            : null,
         actions: [
           IconButton(
-            onPressed: state.isTranslating
-                ? null
-                : () => ref
-                    .read(readerControllerProvider.notifier)
-                    .toggleTranslation(),
-            tooltip: state.translatedParagraphs != null
-                ? 'Show original'
-                : 'Translate to English',
-            icon: state.isTranslating
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+            onPressed:
+                state.isTranslating
+                    ? null
+                    : () =>
+                        ref
+                            .read(readerControllerProvider.notifier)
+                            .toggleTranslation(),
+            tooltip:
+                state.translatedParagraphs != null
+                    ? 'Show original'
+                    : 'Translate to English',
+            icon:
+                state.isTranslating
+                    ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : Icon(
+                      Icons.translate_outlined,
+                      color:
+                          state.translatedParagraphs != null
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
                     ),
-                  )
-                : Icon(
-                    Icons.translate_outlined,
-                    color: state.translatedParagraphs != null
-                        ? Theme.of(context).colorScheme.primary
-                        : null,
-                  ),
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'font_size') {
-                _showFontSizeSettings();
+                showFontSizeSettings(context, ref);
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'font_size', child: Text('Font size')),
-            ],
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem(value: 'font_size', child: Text('Font size')),
+                ],
           ),
         ],
       ),
+      resizeToAvoidBottomInset: false,
+      extendBody: true,
       body: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
@@ -248,10 +249,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               ),
             ),
             const SizedBox(height: 32),
-            for (var index = 0;
-                index < paragraphs.length;
-                index++)
-              _Paragraph(
+            for (var index = 0; index < paragraphs.length; index++)
+              ReadingParagraph(
                 key: _paragraphKey(index),
                 text: paragraphs[index],
                 fontSize: settings.fontSize.toDouble(),
@@ -266,21 +265,30 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   }
                 },
               ),
+            const SizedBox(height: 30),
           ],
         ),
       ),
-      bottomSheet: _ReaderControls(
-        onFontSize: _showFontSizeSettings,
-        isPlaying: tts.isPlaying,
-        isPaused: tts.isPaused,
-        onPlayPause: () => _toggleSpeech(paragraphs),
-        autoScroll: settings.autoScroll,
-        onToggleAutoScroll: _toggleAutoScroll,
-        hasPrevious:
-            chapter.previousChapterUrl != null && !state.isLoading,
-        hasNext: chapter.nextChapterUrl != null && !state.isLoading,
-        onPrevious: _goPrevious,
-        onNext: _goNext,
+      bottomSheet: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TrackerLine(
+            scrollController: _scrollController,
+            progress: narrationProgress,
+          ),
+          ReaderControls(
+            onFontSize: () => showFontSizeSettings(context, ref),
+            isPlaying: tts.isPlaying,
+            isPaused: tts.isPaused,
+            onPlayPause: () => _toggleSpeech(paragraphs),
+            autoScroll: settings.autoScroll,
+            onToggleAutoScroll: _toggleAutoScroll,
+            hasPrevious: chapter.previousChapterUrl != null && !state.isLoading,
+            hasNext: chapter.nextChapterUrl != null && !state.isLoading,
+            onPrevious: _goPrevious,
+            onNext: _goNext,
+          ),
+        ],
       ),
     );
   }
@@ -328,8 +336,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           return;
         }
 
-        _lastReportedParagraph =
-            _topmostParagraph() ?? index;
+        _lastReportedParagraph = _topmostParagraph() ?? index;
         _suppressScrollReport = false;
       },
     );
@@ -343,8 +350,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      final paragraphContext =
-          _paragraphKeys[index]?.currentContext;
+      final paragraphContext = _paragraphKeys[index]?.currentContext;
       if (paragraphContext == null) {
         onComplete?.call();
         return;
@@ -372,15 +378,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
-      final top =
-          box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
       final bottom = top + box.size.height;
 
       final media = MediaQuery.of(paragraphContext);
-      final bottomLimit = viewport.size.height -
-          72 -
-          media.padding.bottom -
-          8;
+      final bottomLimit = viewport.size.height - 72 - media.padding.bottom - 8;
 
       final isVisible = top >= 0 && bottom <= bottomLimit;
 
@@ -389,13 +391,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         return;
       }
 
-      final target = (position.pixels +
-              top -
-              viewport.size.height * 0.25)
-          .clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
+      final target = (position.pixels + top - viewport.size.height * 0.25)
+          .clamp(position.minScrollExtent, position.maxScrollExtent);
 
       if (animate && (target - position.pixels).abs() < 1) {
         onComplete?.call();
@@ -429,16 +426,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     _restoring = true;
 
     try {
-      final entries =
-          await ref.read(readNovelsProvider.future);
+      final entries = await ref.read(readNovelsProvider.future);
 
       if (!mounted) return;
 
-      final current =
-          ref.read(readerControllerProvider).chapter;
-      if (current == null ||
-          current.url != url ||
-          _lastChapterUrl != url) {
+      final current = ref.read(readerControllerProvider).chapter;
+      if (current == null || current.url != url || _lastChapterUrl != url) {
         // A newer chapter took over; its own restore decides.
         return;
       }
@@ -460,9 +453,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }
 
       _lastReportedParagraph = index;
-      ref
-          .read(readerControllerProvider.notifier)
-          .setActiveParagraph(index);
+      ref.read(readerControllerProvider.notifier).setActiveParagraph(index);
       _jumpToParagraph(index);
     } catch (_) {
       if (_lastChapterUrl == url) {
@@ -479,8 +470,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   void _handleScroll() {
     if (!mounted || _suppressScrollReport) return;
 
-    final chapter =
-        ref.read(readerControllerProvider).chapter;
+    final chapter = ref.read(readerControllerProvider).chapter;
     if (chapter == null) return;
 
     final index = _topmostParagraph();
@@ -489,9 +479,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     _lastReportedParagraph = index;
-    ref
-        .read(readerControllerProvider.notifier)
-        .reportParagraph(index);
+    ref.read(readerControllerProvider.notifier).reportParagraph(index);
   }
 
   /// Index of the last paragraph that has crossed the reading line
@@ -517,8 +505,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         continue;
       }
 
-      final top =
-          box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
 
       if (top <= viewport.size.height * 0.25 + 1) {
         result = entry.key;
@@ -553,173 +540,5 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         title: reader.translatedTitle ?? reader.chapter?.title,
       );
     }
-  }
-
-  void _showFontSizeSettings() {
-    var fontSize = ref.read(settingsProvider).fontSize;
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Font Size',
-                    style: AppTypography.heading,
-                  ),
-                  Slider(
-                    min: 14,
-                    max: 32,
-                    divisions: 18,
-                    value: fontSize.toDouble(),
-                    onChanged: (value) {
-                      setModalState(() {
-                        fontSize = value.round();
-                      });
-
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setFontSize(value.round());
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _Paragraph extends StatelessWidget {
-  const _Paragraph({
-    super.key,
-    required this.text,
-    required this.fontSize,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String text;
-  final double fontSize;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 20),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: isActive
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(fontSize: fontSize, height: 1.7),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReaderControls extends StatelessWidget {
-  const _ReaderControls({
-    required this.onFontSize,
-    required this.isPlaying,
-    required this.isPaused,
-    required this.onPlayPause,
-    required this.autoScroll,
-    required this.onToggleAutoScroll,
-    required this.hasPrevious,
-    required this.hasNext,
-    required this.onPrevious,
-    required this.onNext,
-  });
-
-  final VoidCallback onFontSize;
-  final bool isPlaying;
-  final bool isPaused;
-  final VoidCallback onPlayPause;
-  final bool autoScroll;
-  final VoidCallback onToggleAutoScroll;
-  final bool hasPrevious;
-  final bool hasNext;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(color: Colors.grey.shade300),
-          ),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: hasPrevious ? onPrevious : null,
-              tooltip: 'Previous chapter',
-              icon: const Icon(Icons.skip_previous_rounded),
-            ),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: onPlayPause,
-                icon: Icon(
-                  isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                ),
-                label: Text(
-                  isPlaying
-                      ? 'Pause'
-                      : isPaused
-                          ? 'Resume'
-                          : 'Play',
-                ),
-              ),
-            ),
-            IconButton(
-              onPressed: hasNext ? onNext : null,
-              tooltip: 'Next chapter',
-              icon: const Icon(Icons.skip_next_rounded),
-            ),
-            IconButton(
-              onPressed: onToggleAutoScroll,
-              tooltip: 'Auto-scroll',
-              icon: Icon(
-                autoScroll
-                    ? Icons.center_focus_strong
-                    : Icons.center_focus_weak,
-                color: autoScroll
-                    ? Theme.of(context).colorScheme.primary
-                    : null,
-              ),
-            ),
-            IconButton(
-              onPressed: onFontSize,
-              tooltip: 'Font size',
-              icon: const Icon(Icons.text_fields),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
