@@ -5,20 +5,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../core/extensions/time_extensions.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/order_toggle_button.dart';
 import '../../domain/models/pdf_library_item.dart';
 import '../providers/pdf_library_provider.dart';
 
 @RoutePage()
-class LibraryPage extends ConsumerWidget {
+class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends ConsumerState<LibraryPage> {
+  /// The library is stored newest-first, so the list starts
+  /// descending and the button flips it to oldest-first.
+  var _descending = true;
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(pdfLibraryProvider);
     final hasEntries = library.valueOrNull?.isNotEmpty ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Library')),
+      appBar: AppBar(
+        title: const Text('Library'),
+        actions: [
+          OrderToggleButton(
+            descending: _descending,
+            onToggle: () => setState(() => _descending = !_descending),
+          ),
+        ],
+      ),
       body: library.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error:
@@ -41,11 +59,13 @@ class LibraryPage extends ConsumerWidget {
             );
           }
 
+          final ordered = _descending ? entries : entries.reversed.toList();
+
           return ListView.separated(
-            itemCount: entries.length,
+            itemCount: ordered.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
-              final entry = entries[index];
+              final entry = ordered[index];
 
               return ListTile(
                 leading: const CircleAvatar(

@@ -2,19 +2,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/storage/database.dart';
 
-final settingsProvider =
-    NotifierProvider<SettingsController, AppSettings>(
+final settingsProvider = NotifierProvider<SettingsController, AppSettings>(
   SettingsController.new,
 );
 
-/// User preferences: reading display and text-to-speech voice.
+/// User preferences: display, reading and text-to-speech voice.
 class AppSettings {
   const AppSettings({
     this.fontSize = 18,
     this.autoScroll = true,
+    this.autoScrollSpeed = 100,
     this.speechRate = 0.5,
     this.voiceName,
     this.voiceLocale,
+    this.darkMode = false,
   });
 
   /// Reader font size in logical pixels (14–32).
@@ -23,6 +24,10 @@ class AppSettings {
   /// Whether the reader follows the narration automatically.
   final bool autoScroll;
 
+  /// Continuous auto-scroll speed for picture chapters, in logical
+  /// pixels per second (20–400).
+  final double autoScrollSpeed;
+
   /// Text-to-speech rate (0.1–1.0).
   final double speechRate;
 
@@ -30,17 +35,24 @@ class AppSettings {
   final String? voiceName;
   final String? voiceLocale;
 
+  /// Whether the app uses the dark theme.
+  final bool darkMode;
+
   AppSettings copyWith({
     int? fontSize,
     bool? autoScroll,
+    double? autoScrollSpeed,
     double? speechRate,
+    bool? darkMode,
   }) {
     return AppSettings(
       fontSize: fontSize ?? this.fontSize,
       autoScroll: autoScroll ?? this.autoScroll,
+      autoScrollSpeed: autoScrollSpeed ?? this.autoScrollSpeed,
       speechRate: speechRate ?? this.speechRate,
       voiceName: voiceName,
       voiceLocale: voiceLocale,
+      darkMode: darkMode ?? this.darkMode,
     );
   }
 
@@ -48,9 +60,11 @@ class AppSettings {
     return AppSettings(
       fontSize: fontSize,
       autoScroll: autoScroll,
+      autoScrollSpeed: autoScrollSpeed,
       speechRate: speechRate,
       voiceName: name,
       voiceLocale: locale,
+      darkMode: darkMode,
     );
   }
 }
@@ -61,12 +75,16 @@ class AppSettings {
 class SettingsController extends Notifier<AppSettings> {
   static const String fontKey = 'settings.font_size';
   static const String autoScrollKey = 'settings.auto_scroll';
+  static const String autoScrollSpeedKey = 'settings.auto_scroll_speed';
   static const String speechRateKey = 'settings.speech_rate';
   static const String voiceKey = 'settings.voice';
   static const String voiceLocaleKey = 'settings.voice_locale';
+  static const String darkModeKey = 'settings.dark_mode';
 
   static const int minFontSize = 14;
   static const int maxFontSize = 32;
+  static const double minAutoScrollSpeed = 20;
+  static const double maxAutoScrollSpeed = 400;
   static const double minSpeechRate = 0.1;
   static const double maxSpeechRate = 1.0;
 
@@ -95,21 +113,34 @@ class SettingsController extends Notifier<AppSettings> {
     if (db == null) return;
 
     state = AppSettings(
-      fontSize: _dirtyKeys.contains(fontKey)
-          ? state.fontSize
-          : db.getInt(fontKey, fallback: 18),
-      autoScroll: _dirtyKeys.contains(autoScrollKey)
-          ? state.autoScroll
-          : db.getBool(autoScrollKey, fallback: true),
-      speechRate: _dirtyKeys.contains(speechRateKey)
-          ? state.speechRate
-          : double.tryParse(db.getString(speechRateKey) ?? '') ?? 0.5,
-      voiceName: _dirtyKeys.contains(voiceKey)
-          ? state.voiceName
-          : _nonEmpty(db.getString(voiceKey)),
-      voiceLocale: _dirtyKeys.contains(voiceLocaleKey)
-          ? state.voiceLocale
-          : _nonEmpty(db.getString(voiceLocaleKey)),
+      fontSize:
+          _dirtyKeys.contains(fontKey)
+              ? state.fontSize
+              : db.getInt(fontKey, fallback: 18),
+      autoScroll:
+          _dirtyKeys.contains(autoScrollKey)
+              ? state.autoScroll
+              : db.getBool(autoScrollKey, fallback: true),
+      autoScrollSpeed:
+          _dirtyKeys.contains(autoScrollSpeedKey)
+              ? state.autoScrollSpeed
+              : double.tryParse(db.getString(autoScrollSpeedKey) ?? '') ?? 100,
+      speechRate:
+          _dirtyKeys.contains(speechRateKey)
+              ? state.speechRate
+              : double.tryParse(db.getString(speechRateKey) ?? '') ?? 0.5,
+      voiceName:
+          _dirtyKeys.contains(voiceKey)
+              ? state.voiceName
+              : _nonEmpty(db.getString(voiceKey)),
+      voiceLocale:
+          _dirtyKeys.contains(voiceLocaleKey)
+              ? state.voiceLocale
+              : _nonEmpty(db.getString(voiceLocaleKey)),
+      darkMode:
+          _dirtyKeys.contains(darkModeKey)
+              ? state.darkMode
+              : db.getBool(darkModeKey, fallback: false),
     );
   }
 
@@ -147,9 +178,25 @@ class SettingsController extends Notifier<AppSettings> {
     await _persist((db) => db.setBool(autoScrollKey, value));
   }
 
-  Future<void> setSpeechRate(double value) async {
+  Future<void> setAutoScrollSpeed(double value) async {
     final clamped =
-        value.clamp(minSpeechRate, maxSpeechRate).toDouble();
+        value.clamp(minAutoScrollSpeed, maxAutoScrollSpeed).toDouble();
+
+    _dirtyKeys.add(autoScrollSpeedKey);
+    state = state.copyWith(autoScrollSpeed: clamped);
+    await _persist(
+      (db) => db.setString(autoScrollSpeedKey, clamped.toStringAsFixed(0)),
+    );
+  }
+
+  Future<void> setDarkMode(bool value) async {
+    _dirtyKeys.add(darkModeKey);
+    state = state.copyWith(darkMode: value);
+    await _persist((db) => db.setBool(darkModeKey, value));
+  }
+
+  Future<void> setSpeechRate(double value) async {
+    final clamped = value.clamp(minSpeechRate, maxSpeechRate).toDouble();
 
     _dirtyKeys.add(speechRateKey);
     state = state.copyWith(speechRate: clamped);

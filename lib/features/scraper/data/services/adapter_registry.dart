@@ -4,10 +4,7 @@ import '../../domain/services/novel_site_adapter.dart';
 /// Routes requests to the first adapter that handles the URL,
 /// falling back to [fallback] for unknown sites.
 class AdapterRegistry implements NovelSiteAdapter {
-  AdapterRegistry({
-    required this.adapters,
-    required this.fallback,
-  });
+  AdapterRegistry({required this.adapters, required this.fallback});
 
   final List<NovelSiteAdapter> adapters;
   final NovelSiteAdapter fallback;
@@ -29,10 +26,7 @@ class AdapterRegistry implements NovelSiteAdapter {
       resolve(url).requestHeaders(url);
 
   @override
-  Future<ExtractedChapter> extract({
-    required String html,
-    required Uri url,
-  }) {
+  Future<ExtractedChapter> extract({required String html, required Uri url}) {
     return resolve(url).extract(html: html, url: url);
   }
 }

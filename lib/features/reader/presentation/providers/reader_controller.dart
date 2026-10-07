@@ -12,24 +12,30 @@ import '../../../translation/domain/services/translation_service.dart';
 import '../../../translation/presentation/providers/translation_providers.dart';
 
 final readerControllerProvider =
-    StateNotifierProvider<ReaderController, ReaderState>(
-  (ref) {
-    return ReaderController(
-      translator: ref.read(translationServiceProvider),
-      scraper: ref.read(scraperRepositoryProvider),
-      onChapterRead: (url, chapterTitle, novelTitle, paragraphIndex) {
-        unawaited(
-          ref.read(readNovelsProvider.notifier).record(
-                url,
-                chapterTitle,
-                novelTitle: novelTitle,
-                paragraphIndex: paragraphIndex,
-              ),
-        );
-      },
-    );
-  },
-);
+    StateNotifierProvider<ReaderController, ReaderState>((ref) {
+      return ReaderController(
+        translator: ref.read(translationServiceProvider),
+        scraper: ref.read(scraperRepositoryProvider),
+        onChapterRead: (chapter, novelTitle, paragraphIndex) {
+          unawaited(
+            ref
+                .read(readNovelsProvider.notifier)
+                .record(
+                  chapter.url,
+                  chapter.title,
+                  novelTitle: novelTitle,
+                  paragraphIndex: paragraphIndex,
+                  paragraphCount:
+                      chapter.hasImages
+                          ? chapter.imageUrls.length
+                          : chapter.paragraphs.length,
+                  manhwaKey:
+                      chapter.hasImages ? seriesKeyOf(chapter.url) : null,
+                ),
+          );
+        },
+      );
+    });
 
 class ReaderState {
   final Chapter? chapter;
@@ -62,13 +68,11 @@ class ReaderState {
     return ReaderState(
       chapter: chapter ?? this.chapter,
       translatedTitle: translatedTitle ?? this.translatedTitle,
-      translatedParagraphs:
-          translatedParagraphs ?? this.translatedParagraphs,
+      translatedParagraphs: translatedParagraphs ?? this.translatedParagraphs,
       isLoading: isLoading ?? this.isLoading,
       isTranslating: isTranslating ?? this.isTranslating,
       error: error,
-      activeParagraph:
-          activeParagraph ?? this.activeParagraph,
+      activeParagraph: activeParagraph ?? this.activeParagraph,
     );
   }
 }
@@ -87,12 +91,8 @@ class ReaderController extends StateNotifier<ReaderState> {
   /// history can be updated. [paragraphIndex] is null when a chapter
   /// was just opened (position preserved or reset), or the paragraph
   /// the reader is currently at.
-  final void Function(
-    String url,
-    String chapterTitle,
-    String? novelTitle,
-    int? paragraphIndex,
-  )? onChapterRead;
+  final void Function(Chapter chapter, String? novelTitle, int? paragraphIndex)?
+  onChapterRead;
 
   String? _novelTitle;
 
@@ -106,27 +106,23 @@ class ReaderController extends StateNotifier<ReaderState> {
       paragraphs: extracted.paragraphs,
       previousChapterUrl: extracted.previousChapterUrl,
       nextChapterUrl: extracted.nextChapterUrl,
+      imageUrls: extracted.imageUrls,
+      offlineImagePaths: extracted.offlineImagePaths,
       status: ChapterStatus.reading,
     );
 
-    onChapterRead?.call(
-      chapter.url,
-      chapter.title,
-      extracted.novelTitle,
-      null,
-    );
+    onChapterRead?.call(chapter, extracted.novelTitle, null);
 
-    final sample = [
-      chapter.title,
-      ...chapter.paragraphs.take(5),
-    ].join('\n');
+    final sample = [chapter.title, ...chapter.paragraphs.take(5)].join('\n');
 
-    final shouldTranslate = containsCjk(sample);
+    // Picture chapters have nothing to translate or narrate.
+    final shouldTranslate = !chapter.hasImages && containsCjk(sample);
 
     state = ReaderState(
-      chapter: shouldTranslate
-          ? chapter.copyWith(status: ChapterStatus.translating)
-          : chapter,
+      chapter:
+          shouldTranslate
+              ? chapter.copyWith(status: ChapterStatus.translating)
+              : chapter,
       isTranslating: shouldTranslate,
     );
 
@@ -142,10 +138,7 @@ class ReaderController extends StateNotifier<ReaderState> {
       final extracted = await scraper.extractChapter(url);
       openChapter(extracted);
     } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
@@ -167,19 +160,14 @@ class ReaderController extends StateNotifier<ReaderState> {
 
   Future<void> translateChapter(Chapter chapter) async {
     state = state.copyWith(
-      chapter: chapter.copyWith(
-        status: ChapterStatus.translating,
-      ),
+      chapter: chapter.copyWith(status: ChapterStatus.translating),
       isTranslating: true,
       error: null,
     );
 
     try {
       final results = await Future.wait([
-        translator.translateParagraphs(
-          [chapter.title],
-          targetLanguage: 'en',
-        ),
+        translator.translateParagraphs([chapter.title], targetLanguage: 'en'),
         translator.translateParagraphs(
           chapter.paragraphs,
           targetLanguage: 'en',
@@ -190,20 +178,14 @@ class ReaderController extends StateNotifier<ReaderState> {
       final paragraphs = results[1];
 
       state = state.copyWith(
-        chapter: chapter.copyWith(
-          status: ChapterStatus.ready,
-        ),
-        translatedTitle: titleResult.isNotEmpty
-            ? titleResult.first
-            : null,
+        chapter: chapter.copyWith(status: ChapterStatus.ready),
+        translatedTitle: titleResult.isNotEmpty ? titleResult.first : null,
         translatedParagraphs: paragraphs,
         isTranslating: false,
       );
     } catch (e) {
       state = state.copyWith(
-        chapter: chapter.copyWith(
-          status: ChapterStatus.reading,
-        ),
+        chapter: chapter.copyWith(status: ChapterStatus.reading),
         isTranslating: false,
         error: e.toString(),
       );
@@ -217,9 +199,7 @@ class ReaderController extends StateNotifier<ReaderState> {
 
     if (state.translatedParagraphs != null) {
       state = ReaderState(
-        chapter: state.chapter?.copyWith(
-          status: ChapterStatus.reading,
-        ),
+        chapter: state.chapter?.copyWith(status: ChapterStatus.reading),
         activeParagraph: state.activeParagraph,
       );
       return;
@@ -232,9 +212,7 @@ class ReaderController extends StateNotifier<ReaderState> {
   }
 
   void setActiveParagraph(int index) {
-    state = state.copyWith(
-      activeParagraph: index,
-    );
+    state = state.copyWith(activeParagraph: index);
 
     _reportPosition(index);
   }
@@ -253,7 +231,7 @@ class ReaderController extends StateNotifier<ReaderState> {
       return;
     }
 
-    callback(chapter.url, chapter.title, _novelTitle, index);
+    callback(chapter, _novelTitle, index);
   }
 
   void reset() {

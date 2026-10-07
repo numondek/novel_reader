@@ -1,4 +1,4 @@
-﻿import 'selector_novel_adapter.dart';
+import 'selector_novel_adapter.dart';
 
 class SiteAAdapter extends SelectorNovelAdapter {
   const SiteAAdapter();

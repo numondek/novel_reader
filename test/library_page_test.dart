@@ -211,4 +211,26 @@ void main() {
     expect(find.byType(PdfReaderPage), findsNothing);
     expect(store.retained, isEmpty);
   });
+
+  testWidgets('the order button reverses the list', (tester) async {
+    await tester.pumpWidget(buildApp(seed: seedEntries()));
+    await openLibrary(tester);
+
+    // The library is stored newest-first, so the button offers the
+    // ascending order.
+    expect(find.byTooltip('Sort ascending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('One')).dy,
+      lessThan(tester.getTopLeft(find.text('Two')).dy),
+    );
+
+    await tester.tap(find.byTooltip('Sort ascending'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Sort descending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Two')).dy,
+      lessThan(tester.getTopLeft(find.text('One')).dy),
+    );
+  });
 }

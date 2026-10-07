@@ -58,6 +58,14 @@ class _FakeStore implements OfflineChapterStore {
   }
 
   @override
+  Future<void> remove(String novelKey) async {
+    for (final chapter
+        in novels.remove(novelKey) ?? const <ExtractedChapter>[]) {
+      urls.remove(chapter.url);
+    }
+  }
+
+  @override
   Future<ExtractedChapter?> find(String url) async => urls[url];
 }
 
@@ -68,6 +76,17 @@ final ReadNovel novel = ReadNovel(
   chapterTitle: 'Chapter 1',
   readAt: DateTime(2026),
 );
+
+/// The same novel entry as if the reader were at [number].
+ReadNovel readingAt(int number) {
+  return ReadNovel(
+    key: novel.key,
+    url: 'https://example.com/$number',
+    novelTitle: 'Demo',
+    chapterTitle: 'Chapter $number',
+    readAt: DateTime(2026),
+  );
+}
 
 ExtractedChapter chapter(int number, {int last = 50}) {
   return ExtractedChapter(
@@ -96,10 +115,11 @@ Future<void> settle() => Future<void>.delayed(Duration.zero);
 PrefetchController _buildController({
   required _FakeScraper scraper,
   required _FakeStore store,
+  ReadNovel? Function()? seedOf,
 }) {
   return PrefetchController(
     novelKey: novel.key,
-    seed: novel,
+    seedOf: seedOf ?? () => novel,
     scraper: scraper,
     store: store,
   );
@@ -251,7 +271,7 @@ void main() {
     final store = _FakeStore();
     final controller = PrefetchController(
       novelKey: novel.key,
-      seed: null,
+      seedOf: () => null,
       scraper: scraper,
       store: store,
     );
@@ -262,5 +282,87 @@ void main() {
     expect(controller.state.error, 'No chapter to start from.');
     expect(controller.state.savedCount, 0);
     expect(scraper.requests, isEmpty);
+  });
+
+  test('the batch starts at the chapter being read right now', () async {
+    final scraper = _chain();
+    final store = _FakeStore();
+    var current = novel;
+
+    final controller = _buildController(
+      scraper: scraper,
+      store: store,
+      seedOf: () => current,
+    );
+    await settle();
+
+    // The reader moves on before the first batch is saved.
+    current = readingAt(5);
+
+    await controller.fetchNextBatch();
+
+    expect(scraper.requests.first, 'https://example.com/5');
+    expect(scraper.requests, hasLength(10));
+    expect(controller.state.savedCount, 10);
+    expect(controller.state.savedTitles.first, 'Chapter 5');
+    expect(controller.state.savedTitles.last, 'Chapter 14');
+  });
+
+  test('a saved run behind the reading position jumps forward', () async {
+    final scraper = _chain();
+    final store = _FakeStore();
+
+    for (var number = 1; number <= 3; number++) {
+      await store.save(novel.key, chapter(number));
+    }
+
+    final controller = _buildController(
+      scraper: scraper,
+      store: store,
+      seedOf: () => readingAt(20),
+    );
+    await settle();
+
+    await controller.fetchNextBatch();
+
+    expect(scraper.requests.first, 'https://example.com/20');
+    expect(controller.state.savedCount, 13);
+    expect(controller.state.savedTitles.last, 'Chapter 29');
+    expect(controller.state.hasNextBatch, isTrue);
+  });
+
+  test('chapters that are already saved are not fetched again', () async {
+    final scraper = _chain();
+    final store = _FakeStore();
+
+    for (var number = 5; number <= 7; number++) {
+      await store.save(novel.key, chapter(number));
+    }
+
+    final controller = _buildController(
+      scraper: scraper,
+      store: store,
+      seedOf: () => readingAt(2),
+    );
+    await settle();
+
+    await controller.fetchNextBatch();
+
+    // 2, 3, 4 and then straight past the saved run to 8.
+    expect(scraper.requests, <String>[
+      'https://example.com/2',
+      'https://example.com/3',
+      'https://example.com/4',
+      'https://example.com/8',
+      'https://example.com/9',
+      'https://example.com/10',
+      'https://example.com/11',
+      'https://example.com/12',
+      'https://example.com/13',
+      'https://example.com/14',
+    ]);
+    expect(controller.state.savedCount, 13);
+    expect(controller.state.savedTitles, hasLength(13));
+    expect(controller.state.savedTitles.toSet(), hasLength(13));
   });
 }

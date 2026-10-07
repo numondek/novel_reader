@@ -38,14 +38,14 @@ class AppDatabase {
       await file.parent.create(recursive: true);
       await file.writeAsString(jsonEncode(value), flush: true);
     } catch (error) {
-      throw AppExceptionStorage(message: 'Failed to write "$key"', cause: error);
+      throw AppExceptionStorage(
+        message: 'Failed to write "$key"',
+        cause: error,
+      );
     }
   }
 
-  Future<T?> readJson<T>(
-    String key,
-    T Function(Object? json) fromJson,
-  ) async {
+  Future<T?> readJson<T>(String key, T Function(Object? json) fromJson) async {
     try {
       final file = File('${_docsDir.path}${Platform.pathSeparator}$key.json');
       if (!await file.exists()) return null;
@@ -60,6 +60,35 @@ class AppDatabase {
     final file = File('${_docsDir.path}${Platform.pathSeparator}$key.json');
     if (await file.exists()) await file.delete();
     await _prefs.remove('$_dbName:$key');
+  }
+
+  /// The keys of every stored document whose file name starts with
+  /// [prefix] — how a store finds all files of one kind (a novel's
+  /// manifests, say) without keeping an index of them.
+  Future<List<String>> keys({String prefix = ''}) async {
+    try {
+      final keys = <String>[];
+
+      await for (final entity in _docsDir.list()) {
+        if (entity is! File) continue;
+
+        final path = entity.path;
+        if (!path.endsWith('.json')) continue;
+
+        final name = path.substring(
+          path.lastIndexOf(Platform.pathSeparator) + 1,
+          path.length - '.json'.length,
+        );
+
+        if (name.startsWith(prefix)) {
+          keys.add(name);
+        }
+      }
+
+      return keys;
+    } catch (_) {
+      return const [];
+    }
   }
 
   String? getString(String key) => _prefs.getString('$_dbName:$key');

@@ -40,17 +40,13 @@ abstract class SelectorNovelAdapter implements NovelSiteAdapter {
     final content = document.querySelector(contentSelector);
 
     if (content == null) {
-      throw Exception(
-        'No content found for $contentSelector on ${url.host}.',
-      );
+      throw Exception('No content found for $contentSelector on ${url.host}.');
     }
 
     final paragraphs = extractParagraphs(content);
 
     if (paragraphs.isEmpty) {
-      throw Exception(
-        'Could not find chapter content on this page.',
-      );
+      throw Exception('Could not find chapter content on this page.');
     }
 
     return ExtractedChapter(

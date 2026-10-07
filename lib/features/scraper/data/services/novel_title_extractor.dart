@@ -14,10 +14,8 @@ String? extractNovelTitle(dynamic document) {
   ];
 
   for (final selector in metaSelectors) {
-    final content = document
-        .querySelector(selector)
-        ?.attributes['content']
-        ?.trim();
+    final content =
+        document.querySelector(selector)?.attributes['content']?.trim();
 
     if (content != null && content.isNotEmpty) {
       return content;
@@ -68,9 +66,8 @@ String? extractNovelTitle(dynamic document) {
     final links = document.querySelectorAll(selector);
     if (links.isEmpty) continue;
 
-    var text = links.last.text
-        .replaceFirst(RegExp(r'\s*《目[錄录]》\s*$'), '')
-        .trim();
+    var text =
+        links.last.text.replaceFirst(RegExp(r'\s*《目[錄录]》\s*$'), '').trim();
 
     if (catalogWords.contains(text) && links.length > 1) {
       text = links[links.length - 2].text.trim();

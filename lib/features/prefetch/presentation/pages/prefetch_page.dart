@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/order_toggle_button.dart';
 import '../../../novels/domain/models/read_novel.dart';
 import '../../../novels/presentation/providers/read_novels_provider.dart';
+import '../../../scraper/data/services/chapter_order.dart';
 import '../providers/offline_chapters_provider.dart';
 import '../providers/prefetch_controller_provider.dart';
 
@@ -20,12 +22,24 @@ class _PrefetchPageState extends ConsumerState<PrefetchPage> {
   /// Which novel to prefetch; defaults to the most recently read.
   String? _novelKey;
 
+  /// Saved chapters are listed in reading order, so the list starts
+  /// ascending and the button flips it to last-first.
+  var _descending = false;
+
   @override
   Widget build(BuildContext context) {
-    final novels = ref.watch(readNovelsProvider);
+    final novels = ref.watch(novelHistoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Prefetch')),
+      appBar: AppBar(
+        title: const Text('Prefetch'),
+        actions: [
+          OrderToggleButton(
+            descending: _descending,
+            onToggle: () => setState(() => _descending = !_descending),
+          ),
+        ],
+      ),
       body: novels.when(
         skipLoadingOnReload: true,
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -148,12 +162,12 @@ class _PrefetchPageState extends ConsumerState<PrefetchPage> {
                   ),
         ),
         const Divider(height: 1),
-        Expanded(child: _savedList(state)),
+        Expanded(child: _savedList(state, selected)),
       ],
     );
   }
 
-  Widget _savedList(PrefetchState state) {
+  Widget _savedList(PrefetchState state, ReadNovel novel) {
     if (!state.ready) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -163,14 +177,38 @@ class _PrefetchPageState extends ConsumerState<PrefetchPage> {
       return const Center(child: Text('Chapters you save show up here.'));
     }
 
+    final rows = [
+      for (var index = 0; index < titles.length; index++)
+        (
+          titles[index],
+          index < state.savedUrls.length ? state.savedUrls[index] : '',
+        ),
+    ];
+    final ordered = _descending ? rows.reversed.toList() : rows;
+    final theme = Theme.of(context);
+
     return ListView.separated(
-      itemCount: titles.length,
+      itemCount: ordered.length,
       separatorBuilder: (context, index) => const Divider(height: 1),
       itemBuilder: (context, index) {
+        final (title, url) = ordered[index];
+        final read = url.isNotEmpty && novel.hasRead(url);
+        final percent = read ? novel.readPercent(url) : null;
+
         return ListTile(
           dense: true,
-          leading: const Icon(Icons.check_circle_outline),
-          title: Text(titles[index]),
+          leading: Icon(
+            read ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: read ? theme.colorScheme.primary : theme.colorScheme.outline,
+          ),
+          title: Text(chapterLabelOf(title, url)),
+          subtitle:
+              !read
+                  ? null
+                  : Text(
+                    percent == null ? 'Read' : '$percent read',
+                    style: theme.textTheme.bodySmall,
+                  ),
         );
       },
     );

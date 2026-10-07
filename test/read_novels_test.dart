@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novel_reader/features/novels/domain/models/read_novel.dart';
 import 'package:novel_reader/features/novels/presentation/providers/read_novels_provider.dart';
+import 'package:novel_reader/features/scraper/domain/models/manhwa_series.dart';
+import 'package:novel_reader/features/scraper/presentation/providers/manhwa_shelf_provider.dart';
 import 'package:novel_reader/features/translation/domain/services/translation_service.dart';
 import 'package:novel_reader/features/translation/presentation/providers/translation_providers.dart';
 
@@ -64,10 +66,7 @@ void main() {
     final list = await container.read(readNovelsProvider.future);
 
     expect(list, hasLength(2));
-    expect(
-      list.map((entry) => entry.title),
-      ['Sol', 'Nova'],
-    );
+    expect(list.map((entry) => entry.title), ['Sol', 'Nova']);
 
     final nova = list.singleWhere(
       (entry) => entry.key == 'novel:site.com:Nova',
@@ -92,22 +91,15 @@ void main() {
     final list = await container.read(readNovelsProvider.future);
 
     expect(list, hasLength(2));
-    expect(
-      list.map((entry) => entry.title).toSet(),
-      {'Alpha', 'Beta'},
-    );
-    expect(
-      list.map((entry) => entry.key).toSet(),
-      {'novel:site.com:Alpha', 'novel:site.com:Beta'},
-    );
+    expect(list.map((entry) => entry.title).toSet(), {'Alpha', 'Beta'});
+    expect(list.map((entry) => entry.key).toSet(), {
+      'novel:site.com:Alpha',
+      'novel:site.com:Beta',
+    });
   });
 
-  test('entries without a novel name fall back to a URL key',
-      () async {
-    await controller().record(
-      'https://site.com/nova/chapter-1',
-      'Chapter 1',
-    );
+  test('entries without a novel name fall back to a URL key', () async {
+    await controller().record('https://site.com/nova/chapter-1', 'Chapter 1');
 
     final list = await container.read(readNovelsProvider.future);
 
@@ -117,8 +109,7 @@ void main() {
     expect(list.single.novelTitle, isNull);
   });
 
-  test('preserves the position when the same chapter reopens',
-      () async {
+  test('preserves the position when the same chapter reopens', () async {
     await controller().record(
       'https://site.com/nova/chapter-2',
       'Chapter 2',
@@ -176,6 +167,185 @@ void main() {
     expect(list.single.paragraphIndex, 17);
   });
 
+  test('a picture series is keyed by its shelf key and folds the '
+      'chapters it recorded earlier', () async {
+    await controller().record(
+      'https://site.com/manga/nova/chapter-1',
+      'Chapter 1',
+    );
+    await controller().record(
+      'https://site.com/manga/nova/chapter-2',
+      'Chapter 2',
+      manhwaKey: 'manhwa:site.com/manga/nova',
+      paragraphIndex: 3,
+      paragraphCount: 7,
+    );
+
+    final list = await container.read(readNovelsProvider.future);
+
+    expect(list, hasLength(1));
+
+    final nova = list.single;
+    expect(nova.key, 'manhwa:site.com/manga/nova');
+    expect(nova.isManhwa, isTrue);
+    expect(nova.url, 'https://site.com/manga/nova/chapter-2');
+    expect(nova.hasRead('https://site.com/manga/nova/chapter-1'), isTrue);
+    expect(nova.hasRead('https://site.com/manga/nova/chapter-2'), isTrue);
+
+    // The chapter read before its length was tracked has no share yet.
+    expect(nova.readPercent('https://site.com/manga/nova/chapter-1'), isNull);
+    expect(nova.readPercent('https://site.com/manga/nova/chapter-2'), '50%');
+  });
+
+  test('two manhwa from one host never share an entry', () async {
+    // Recorded before the shelf knew the series: the plain URL key
+    // only sees the shared /manga/ folder both hang from.
+    await controller().record(
+      'https://site.com/manga/alpha/chapter-0',
+      'Chapter 0',
+    );
+
+    final shelfController = container.read(manhwaSeriesProvider.notifier);
+    await shelfController.record(
+      ManhwaSeries(
+        novelKey: 'manhwa:site.com/manga/alpha',
+        title: 'Alpha',
+        sourceUrl: 'https://site.com/manga/alpha',
+        openedAt: DateTime(2026),
+      ),
+    );
+    await shelfController.record(
+      ManhwaSeries(
+        novelKey: 'manhwa:site.com/manga/beta',
+        title: 'Beta',
+        sourceUrl: 'https://site.com/manga/beta',
+        openedAt: DateTime(2026),
+      ),
+    );
+
+    await controller().record(
+      'https://site.com/manga/alpha/chapter-1',
+      'Chapter 1',
+    );
+    await controller().record(
+      'https://site.com/manga/beta/chapter-1',
+      'Chapter 1',
+    );
+
+    final list = await container.read(readNovelsProvider.future);
+
+    expect(list, hasLength(2));
+    expect(list.map((entry) => entry.key).toSet(), {
+      'manhwa:site.com/manga/alpha',
+      'manhwa:site.com/manga/beta',
+    });
+    expect(list.map((entry) => entry.url).toSet(), {
+      'https://site.com/manga/alpha/chapter-1',
+      'https://site.com/manga/beta/chapter-1',
+    });
+
+    final alpha = list.singleWhere(
+      (entry) => entry.key == 'manhwa:site.com/manga/alpha',
+    );
+    expect(alpha.title, 'Alpha');
+
+    // The chapter read before the shelf knew the series folded in.
+    expect(alpha.hasRead('https://site.com/manga/alpha/chapter-0'), isTrue);
+    expect(alpha.hasRead('https://site.com/manga/beta/chapter-0'), isFalse);
+  });
+
+  test('records how far into each chapter the reader got', () async {
+    await controller().record(
+      'https://site.com/nova/chapter-1',
+      'Chapter 1',
+      novelTitle: 'Nova',
+      paragraphIndex: 4,
+      paragraphCount: 11,
+    );
+    await controller().record(
+      'https://site.com/nova/chapter-2',
+      'Chapter 2',
+      novelTitle: 'Nova',
+      paragraphIndex: 0,
+      paragraphCount: 10,
+    );
+
+    final nova = (await container.read(readNovelsProvider.future)).single;
+
+    expect(nova.hasRead('https://site.com/nova/chapter-1'), isTrue);
+    expect(nova.readPercent('https://site.com/nova/chapter-1'), '40%');
+    expect(nova.readPercent('https://site.com/nova/chapter-2'), '0%');
+    expect(nova.readPercent('https://site.com/nova/chapter-3'), isNull);
+
+    expect(nova.paragraphIndex, 0);
+    expect(nova.paragraphCount, 10);
+  });
+
+  test('a one-paragraph chapter counts as fully read', () async {
+    await controller().record(
+      'https://site.com/one/chapter-1',
+      'Chapter 1',
+      novelTitle: 'One',
+      paragraphIndex: 0,
+      paragraphCount: 1,
+    );
+
+    final one = (await container.read(readNovelsProvider.future)).single;
+
+    expect(one.readFraction('https://site.com/one/chapter-1'), 1.0);
+    expect(one.readPercent('https://site.com/one/chapter-1'), '100%');
+  });
+
+  test('readEntryFor finds a series by its shelf key', () {
+    final entries = [
+      ReadNovel(
+        key: 'url:site.com:manga',
+        url: 'https://site.com/manga/nova/chapter-1',
+        chapterTitle: 'Chapter 1',
+        readAt: DateTime(2026),
+      ),
+    ];
+
+    expect(readEntryFor(entries, 'manhwa:site.com/manga/nova'), entries.single);
+    expect(readEntryFor(entries, 'manhwa:site.com/manga'), entries.single);
+    expect(readEntryFor(entries, 'manhwa:site.com/manga/other'), isNull);
+    expect(readEntryFor(entries, 'novel:site.com:Nova'), isNull);
+    expect(readEntryFor(const [], 'manhwa:site.com/manga/nova'), isNull);
+  });
+
+  test('the novels list leaves shelf series to the manhwa page', () async {
+    await controller().record(
+      'https://site.com/nova/chapter-1',
+      'Chapter 1',
+      novelTitle: 'Nova',
+    );
+    await controller().record(
+      'https://site.com/manga/nova/chapter-1',
+      'Chapter 1',
+    );
+    await controller().record(
+      'https://site.com/manga/other/chapter-1',
+      'Chapter 1',
+      manhwaKey: 'manhwa:site.com/manga/other',
+    );
+
+    await container
+        .read(manhwaSeriesProvider.notifier)
+        .record(
+          ManhwaSeries(
+            novelKey: 'manhwa:site.com/manga/nova',
+            title: 'Nova',
+            sourceUrl: 'https://site.com/manga/nova',
+            openedAt: DateTime(2026),
+          ),
+        );
+
+    final history = container.read(novelHistoryProvider);
+
+    expect(history.hasValue, isTrue);
+    expect(history.value!.map((entry) => entry.key), ['novel:site.com:Nova']);
+  });
+
   test('remove deletes the matching entry', () async {
     await controller().record(
       'https://site.com/nova/chapter-1',
@@ -208,16 +378,55 @@ void main() {
     expect(list, hasLength(1));
   });
 
+  test('removeSeries clears every entry of that series', () async {
+    await controller().record(
+      'https://asurascans.com/comics/myst-might-mayhem-bd5bdaf8/chapter/116',
+      'Chapter 116',
+      manhwaKey: 'manhwa:asurascans.com/comics/myst-might-mayhem-bd5bdaf8',
+    );
+    // The same chapter before it was keyed to the shelf.
+    await controller().record(
+      'https://asurascans.com/comics/myst-might-mayhem-bd5bdaf8/chapter/115',
+      'Chapter 115',
+    );
+    await controller().record(
+      'https://site.com/nova/chapter-1',
+      'Chapter 1',
+      novelTitle: 'Nova',
+    );
+
+    await controller().removeSeries(
+      'manhwa:asurascans.com/comics/myst-might-mayhem-bd5bdaf8',
+    );
+
+    final list = await container.read(readNovelsProvider.future);
+
+    expect(list.map((entry) => entry.key), ['novel:site.com:Nova']);
+  });
+
+  test('removeSeries of a series nobody opened is a no-op', () async {
+    await controller().record(
+      'https://site.com/nova/chapter-1',
+      'Chapter 1',
+      novelTitle: 'Nova',
+    );
+
+    await controller().removeSeries('manhwa:site.com/nowhere');
+
+    final list = await container.read(readNovelsProvider.future);
+    expect(list, hasLength(1));
+  });
+
   test('CJK titles get English translations for display', () async {
     final fake = _FakeTranslation();
     final scoped = ProviderContainer(
-      overrides: [
-        translationServiceProvider.overrideWithValue(fake),
-      ],
+      overrides: [translationServiceProvider.overrideWithValue(fake)],
     );
     addTearDown(scoped.dispose);
 
-    await scoped.read(readNovelsProvider.notifier).record(
+    await scoped
+        .read(readNovelsProvider.notifier)
+        .record(
           'https://site.com/n/ch-1',
           '第4682章 十小聖之首',
           novelTitle: '開局簽到荒古聖體',
@@ -234,7 +443,9 @@ void main() {
     expect(entry.key, 'novel:site.com:開局簽到荒古聖體');
     expect(fake.calls, 1);
 
-    await scoped.read(readNovelsProvider.notifier).record(
+    await scoped
+        .read(readNovelsProvider.notifier)
+        .record(
           'https://site.com/n/ch-1',
           '第4682章 十小聖之首',
           novelTitle: '開局簽到荒古聖體',
@@ -248,8 +459,7 @@ void main() {
     expect(fake.calls, 1);
   });
 
-  test('failed title translation falls back to the original',
-      () async {
+  test('failed title translation falls back to the original', () async {
     final scoped = ProviderContainer(
       overrides: [
         translationServiceProvider.overrideWithValue(
@@ -259,7 +469,9 @@ void main() {
     );
     addTearDown(scoped.dispose);
 
-    await scoped.read(readNovelsProvider.notifier).record(
+    await scoped
+        .read(readNovelsProvider.notifier)
+        .record(
           'https://site.com/n/ch-1',
           '第4682章 十小聖之首',
           novelTitle: '開局簽到荒古聖體',
@@ -285,19 +497,14 @@ void main() {
 
   test('keyFor falls back to host and first path segment', () {
     expect(
-      ReadNovel.keyFor(
-        'https://www.site.com/novel-slug/chapter-3?q=1#top',
-      ),
+      ReadNovel.keyFor('https://www.site.com/novel-slug/chapter-3?q=1#top'),
       'url:www.site.com:novel-slug',
     );
     expect(
       ReadNovel.keyFor('https://www.site.com/index.html'),
       'url:www.site.com:index.html',
     );
-    expect(
-      ReadNovel.keyFor('https://www.site.com/'),
-      'url:www.site.com',
-    );
+    expect(ReadNovel.keyFor('https://www.site.com/'), 'url:www.site.com');
   });
 
   test('json round trip preserves fields', () {
@@ -309,6 +516,11 @@ void main() {
       chapterTitle: 'Chapter 2',
       chapterTitleEn: 'Chapter 2 EN',
       paragraphIndex: 17,
+      paragraphCount: 19,
+      chapterProgress: const {
+        'https://site.com/nova/chapter-1': [5, 9],
+        'https://site.com/nova/chapter-2': [17, 19],
+      },
       readAt: DateTime.fromMillisecondsSinceEpoch(1735689600000),
     );
 
@@ -325,6 +537,8 @@ void main() {
     expect(decoded.title, 'Nova EN');
     expect(decoded.displayChapterTitle, 'Chapter 2 EN');
     expect(decoded.paragraphIndex, 17);
+    expect(decoded.paragraphCount, 19);
+    expect(decoded.chapterProgress, entry.chapterProgress);
     expect(decoded.readAt, entry.readAt);
     expect(decoded.host, 'site.com');
   });
@@ -343,5 +557,8 @@ void main() {
     expect(decoded.chapterTitleEn, isNull);
     expect(decoded.title, 'Chapter 1');
     expect(decoded.paragraphIndex, 0);
+    expect(decoded.paragraphCount, 0);
+    expect(decoded.chapterProgress, isEmpty);
+    expect(decoded.isManhwa, isFalse);
   });
 }

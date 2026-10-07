@@ -20,10 +20,10 @@ class _FakeTts implements TextToSpeech {
 
   @override
   Future<List<TtsVoice>> getVoices() async => const [
-        TtsVoice(name: 'Alice', locale: 'en-US'),
-        TtsVoice(name: 'Bob', locale: 'zh-CN'),
-        TtsVoice(name: 'Carol', locale: 'en-GB'),
-      ];
+    TtsVoice(name: 'Alice', locale: 'en-US'),
+    TtsVoice(name: 'Bob', locale: 'zh-CN'),
+    TtsVoice(name: 'Carol', locale: 'en-GB'),
+  ];
 
   @override
   Future<void> speak(String text) async {
@@ -56,26 +56,21 @@ class _SeededSettings extends SettingsController {
   }
 }
 
-Finder _dropdown() => find.byWidgetPredicate(
-      (widget) => widget is DropdownButton,
-    );
+Finder _dropdown() =>
+    find.byWidgetPredicate((widget) => widget is DropdownButton);
 
 void main() {
   late _FakeTts fakeTts;
 
   Widget buildPage() {
     return ProviderScope(
-      overrides: [
-        ttsServiceProvider.overrideWithValue(fakeTts),
-      ],
+      overrides: [ttsServiceProvider.overrideWithValue(fakeTts)],
       child: const MaterialApp(home: SettingsPage()),
     );
   }
 
   ProviderContainer containerOf(WidgetTester tester) {
-    return ProviderScope.containerOf(
-      tester.element(find.byType(SettingsPage)),
-    );
+    return ProviderScope.containerOf(tester.element(find.byType(SettingsPage)));
   }
 
   setUp(() {
@@ -91,10 +86,7 @@ void main() {
     expect(find.text('18 px'), findsOneWidget);
     expect(find.text('Auto-scroll'), findsOneWidget);
 
-    expect(
-      find.text('Voice (Text-to-speech)'),
-      findsOneWidget,
-    );
+    expect(find.text('Voice (Text-to-speech)'), findsOneWidget);
     expect(find.text('Speech rate'), findsOneWidget);
     expect(find.text('0.50\u00d7'), findsOneWidget);
     expect(find.text('Voice'), findsOneWidget);
@@ -102,8 +94,7 @@ void main() {
     expect(find.text('Test voice'), findsOneWidget);
   });
 
-  testWidgets('auto-scroll switch updates settings',
-      (tester) async {
+  testWidgets('auto-scroll switch updates settings', (tester) async {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -112,10 +103,20 @@ void main() {
     await tester.tap(find.text('Auto-scroll'));
     await tester.pumpAndSettle();
 
-    expect(
-      containerOf(tester).read(settingsProvider).autoScroll,
-      isFalse,
-    );
+    expect(containerOf(tester).read(settingsProvider).autoScroll, isFalse);
+  });
+
+  testWidgets('dark mode switch updates settings', (tester) async {
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Display'), findsOneWidget);
+    expect(containerOf(tester).read(settingsProvider).darkMode, isFalse);
+
+    await tester.tap(find.text('Dark mode'));
+    await tester.pumpAndSettle();
+
+    expect(containerOf(tester).read(settingsProvider).darkMode, isTrue);
   });
 
   testWidgets('speech rate slider updates settings', (tester) async {
@@ -147,8 +148,9 @@ void main() {
     );
   });
 
-  testWidgets('voice dropdown lists device voices and saves a pick',
-      (tester) async {
+  testWidgets('voice dropdown lists device voices and saves a pick', (
+    tester,
+  ) async {
     await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
@@ -169,8 +171,7 @@ void main() {
     expect(settings.voiceLocale, 'en-US');
   });
 
-  testWidgets('choosing system default clears the voice',
-      (tester) async {
+  testWidgets('choosing system default clears the voice', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [

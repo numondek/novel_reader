@@ -9,8 +9,7 @@ String? findNavigationLink(
   List<String> selectors = const [],
 }) {
   for (final selector in selectors) {
-    final href =
-        document.querySelector(selector)?.attributes['href'];
+    final href = document.querySelector(selector)?.attributes['href'];
 
     final resolved = _resolve(currentUrl, href);
     if (resolved != null) {
@@ -18,14 +17,7 @@ String? findNavigationLink(
     }
   }
 
-  const nextLabels = [
-    'next chapter',
-    '下一',
-    '下页',
-    '→',
-    '›',
-    '»',
-  ];
+  const nextLabels = ['next chapter', '下一', '下页', '→', '›', '»'];
 
   const previousLabels = [
     'prev chapter',
@@ -46,11 +38,10 @@ String? findNavigationLink(
       continue;
     }
 
-    final isLabel = isNext
-        ? text == 'next' || labels.any(text.contains)
-        : text == 'prev' ||
-            text == 'previous' ||
-            labels.any(text.contains);
+    final isLabel =
+        isNext
+            ? text == 'next' || labels.any(text.contains)
+            : text == 'prev' || text == 'previous' || labels.any(text.contains);
 
     if (!isLabel) {
       continue;

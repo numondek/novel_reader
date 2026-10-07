@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_typography.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/order_toggle_button.dart';
 import '../../../reader/presentation/providers/reader_tts_controller.dart';
 import '../../../reader/presentation/widgets/font_size_settings.dart';
 import '../../../reader/presentation/widgets/reading_paragraph.dart';
@@ -47,6 +48,10 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
   /// Chapter to start narrating once its text lands, set when a
   /// chapter finishes so playback continues into the next one.
   int? _pendingAutoPlayIndex;
+
+  /// Document chapters are in reading order, so the drawer starts
+  /// ascending and the button flips it to last-first.
+  var _chaptersDescending = false;
 
   PdfReaderController get _controller =>
       ref.read(pdfReaderControllerProvider(widget.path).notifier);
@@ -133,10 +138,7 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
           next.error == null) {
         _pendingAutoPlayIndex = null;
 
-        _ttsController.play(
-          next.paragraphs,
-          title: next.chapter?.displayTitle,
-        );
+        _ttsController.play(next.paragraphs, title: next.chapter?.displayTitle);
       }
     });
 
@@ -311,16 +313,35 @@ class _PdfReaderPageState extends ConsumerState<PdfReaderPage> {
   Widget _buildChapterDrawer(PdfReaderState state) {
     final chapters = state.document?.chapters ?? const [];
 
+    var order = List<int>.generate(chapters.length, (index) => index);
+    if (_chaptersDescending) {
+      order = order.reversed.toList();
+    }
+
     return Drawer(
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text('Chapters', style: AppTypography.heading),
+              padding: const EdgeInsets.fromLTRB(8, 8, 4, 0),
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Chapters', style: AppTypography.heading),
+                  ),
+                  OrderToggleButton(
+                    descending: _chaptersDescending,
+                    onToggle:
+                        () => setState(
+                          () => _chaptersDescending = !_chaptersDescending,
+                        ),
+                  ),
+                ],
+              ),
             ),
-            for (var index = 0; index < chapters.length; index++)
+            for (final index in order)
               ListTile(
                 dense: true,
                 selected: index == state.chapterIndex,

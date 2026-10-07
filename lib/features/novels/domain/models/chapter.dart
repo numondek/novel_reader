@@ -18,6 +18,8 @@ class Chapter {
     this.chapterNumber,
     this.previousChapterUrl,
     this.nextChapterUrl,
+    this.imageUrls = const [],
+    this.offlineImagePaths,
     this.status = ChapterStatus.unknown,
   });
 
@@ -28,7 +30,17 @@ class Chapter {
   final int? chapterNumber;
   final String? previousChapterUrl;
   final String? nextChapterUrl;
+
+  /// Picture URLs for image chapters (manhwa), in reading order.
+  final List<String> imageUrls;
+
+  /// Local copies of [imageUrls], aligned by index; `null` entries
+  /// are still only available over the network.
+  final List<String?>? offlineImagePaths;
   final ChapterStatus status;
+
+  /// Whether the chapter renders as pictures instead of text.
+  bool get hasImages => imageUrls.isNotEmpty;
 
   Chapter copyWith({
     String? id,
@@ -38,6 +50,8 @@ class Chapter {
     int? chapterNumber,
     String? previousChapterUrl,
     String? nextChapterUrl,
+    List<String>? imageUrls,
+    List<String?>? offlineImagePaths,
     ChapterStatus? status,
   }) {
     return Chapter(
@@ -49,6 +63,8 @@ class Chapter {
       previousChapterUrl:
           previousChapterUrl ?? this.previousChapterUrl,
       nextChapterUrl: nextChapterUrl ?? this.nextChapterUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
+      offlineImagePaths: offlineImagePaths ?? this.offlineImagePaths,
       status: status ?? this.status,
     );
   }

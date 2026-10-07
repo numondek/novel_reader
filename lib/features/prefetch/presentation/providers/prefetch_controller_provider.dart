@@ -15,26 +15,27 @@ const int prefetchBatchSize = 10;
 /// Prefetch progress for one novel, keyed by [ReadNovel.key].
 ///
 /// Kept alive while the page is open so the saved summary survives
-/// unrelated rebuilds; the read history is read once at creation.
+/// unrelated rebuilds; the chapter being read is resolved when a
+/// batch starts.
 final prefetchControllerProvider =
     StateNotifierProvider.family<PrefetchController, PrefetchState, String>((
       ref,
       novelKey,
     ) {
-      final novels =
-          ref.read(readNovelsProvider).valueOrNull ?? const <ReadNovel>[];
+      ReadNovel? presentChapter() {
+        final novels =
+            ref.read(readNovelsProvider).valueOrNull ?? const <ReadNovel>[];
 
-      ReadNovel? seed;
-      for (final novel in novels) {
-        if (novel.key == novelKey) {
-          seed = novel;
-          break;
+        for (final novel in novels) {
+          if (novel.key == novelKey) return novel;
         }
+
+        return null;
       }
 
       return PrefetchController(
         novelKey: novelKey,
-        seed: seed,
+        seedOf: presentChapter,
         scraper: ref.read(scraperRepositoryProvider),
         store: ref.read(offlineChapterStoreProvider),
       );
@@ -45,6 +46,7 @@ class PrefetchState {
   const PrefetchState({
     this.savedCount = 0,
     this.savedTitles = const [],
+    this.savedUrls = const [],
     this.isFetching = false,
     this.fetchedCount = 0,
     this.hasNextBatch = true,
@@ -55,8 +57,12 @@ class PrefetchState {
   /// Chapters already stored on the device for this novel.
   final int savedCount;
 
-  /// Titles of [savedCount], in reading order.
+  /// Titles of [savedCount], in the order they were saved.
   final List<String> savedTitles;
+
+  /// URLs of [savedCount], aligned with [savedTitles], so the list
+  /// can tell which of them have been read.
+  final List<String> savedUrls;
 
   final bool isFetching;
 
@@ -84,6 +90,7 @@ class PrefetchState {
   PrefetchState copyWith({
     int? savedCount,
     List<String>? savedTitles,
+    List<String>? savedUrls,
     bool? isFetching,
     int? fetchedCount,
     bool? hasNextBatch,
@@ -94,6 +101,7 @@ class PrefetchState {
     return PrefetchState(
       savedCount: savedCount ?? this.savedCount,
       savedTitles: savedTitles ?? this.savedTitles,
+      savedUrls: savedUrls ?? this.savedUrls,
       isFetching: isFetching ?? this.isFetching,
       fetchedCount: fetchedCount ?? this.fetchedCount,
       hasNextBatch: hasNextBatch ?? this.hasNextBatch,
@@ -103,22 +111,25 @@ class PrefetchState {
   }
 }
 
-/// Saves batches of chapters from a novel's chain to local storage.
+/// Saves batches of chapters from a novel's chain to local storage,
+/// starting from the chapter the user is reading now.
 class PrefetchController extends StateNotifier<PrefetchState> {
   PrefetchController({
     required this.novelKey,
-    required this.seed,
+    required ReadNovel? Function() seedOf,
     required this.scraper,
     required this.store,
-  }) : super(const PrefetchState()) {
+  }) : _seedOf = seedOf,
+       super(const PrefetchState()) {
     _restore();
   }
 
   final String novelKey;
 
-  /// The chapter the user read most recently, seeding the first
-  /// batch before anything has been saved.
-  final ReadNovel? seed;
+  /// Resolves the chapter the user is reading right now, so saving
+  /// follows the present reading position instead of a snapshot
+  /// taken earlier.
+  final ReadNovel? Function() _seedOf;
   final ScraperRepository scraper;
   final OfflineChapterStore store;
 
@@ -135,14 +146,15 @@ class PrefetchController extends StateNotifier<PrefetchState> {
       ready: true,
       savedCount: saved.length,
       savedTitles: [for (final chapter in saved) chapter.title],
-      hasNextBatch: saved.isEmpty || saved.last.nextChapterUrl != null,
+      savedUrls: [for (final chapter in saved) chapter.url],
+      hasNextBatch: _hasNextBatch(),
       clearError: true,
     );
   }
 
-  /// Saves up to [prefetchBatchSize] more chapters, starting after
-  /// the last saved one — or at the chapter the user read last when
-  /// nothing is saved yet.
+  /// Saves up to [prefetchBatchSize] more chapters, starting at the
+  /// chapter the user is reading now unless it is already saved —
+  /// then right after the last saved one.
   Future<void> fetchNextBatch() async {
     if (!state.ready || state.isFetching || !state.hasNextBatch) {
       return;
@@ -163,6 +175,16 @@ class PrefetchController extends StateNotifier<PrefetchState> {
     while (fetched < prefetchBatchSize) {
       if (!mounted) return;
 
+      final kept = _findSaved(url);
+
+      if (kept != null) {
+        // Already offline: walk past it without downloading again.
+        final next = kept.nextChapterUrl;
+        if (next == null) break;
+        url = next;
+        continue;
+      }
+
       try {
         final chapter = await scraper.extractChapter(url);
         if (!mounted) return;
@@ -176,6 +198,7 @@ class PrefetchController extends StateNotifier<PrefetchState> {
         state = state.copyWith(
           savedCount: _saved.length,
           savedTitles: [...state.savedTitles, chapter.title],
+          savedUrls: [...state.savedUrls, chapter.url],
           fetchedCount: fetched,
         );
       } catch (error) {
@@ -192,17 +215,46 @@ class PrefetchController extends StateNotifier<PrefetchState> {
 
     state = state.copyWith(
       isFetching: false,
-      hasNextBatch:
-          _saved.isEmpty
-              ? state.hasNextBatch
-              : _saved.last.nextChapterUrl != null,
+      hasNextBatch: _hasNextBatch(),
       error: failure == null ? null : _messageOf(failure),
     );
   }
 
+  /// Where the next batch starts: the chapter being read now unless
+  /// it is already saved, in which case right after the last saved
+  /// chapter.
   String? _nextStartUrl() {
-    if (_saved.isNotEmpty) return _saved.last.nextChapterUrl;
-    return seed?.url;
+    final current = _seedOf()?.url ?? '';
+
+    if (current.isEmpty) {
+      return _saved.isEmpty ? null : _saved.last.nextChapterUrl;
+    }
+
+    if (_findSaved(current) == null) return current;
+
+    return _saved.last.nextChapterUrl;
+  }
+
+  bool _hasNextBatch() {
+    final current = _seedOf()?.url ?? '';
+
+    if (current.isNotEmpty && _findSaved(current) == null) {
+      return true;
+    }
+
+    if (_saved.isEmpty) {
+      return state.hasNextBatch;
+    }
+
+    return _saved.last.nextChapterUrl != null;
+  }
+
+  ExtractedChapter? _findSaved(String url) {
+    for (final chapter in _saved) {
+      if (chapter.url == url) return chapter;
+    }
+
+    return null;
   }
 
   static final RegExp _errorPrefix = RegExp(

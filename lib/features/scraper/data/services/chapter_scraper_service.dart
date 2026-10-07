@@ -2,9 +2,8 @@ import '../../../novels/domain/models/chapter.dart';
 import '../repositories/scraper_repository.dart';
 
 class ChapterScraperService {
-  ChapterScraperService({
-    required ScraperRepository repository,
-  }) : _repository = repository;
+  ChapterScraperService({required ScraperRepository repository})
+    : _repository = repository;
 
   final ScraperRepository _repository;
 
@@ -18,6 +17,8 @@ class ChapterScraperService {
       paragraphs: extracted.paragraphs,
       previousChapterUrl: extracted.previousChapterUrl,
       nextChapterUrl: extracted.nextChapterUrl,
+      imageUrls: extracted.imageUrls,
+      offlineImagePaths: extracted.offlineImagePaths,
       status: ChapterStatus.extracted,
     );
   }

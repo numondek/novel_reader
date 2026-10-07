@@ -27,6 +27,9 @@ class _MapStore implements OfflineChapterStore {
   Future<void> save(String novelKey, ExtractedChapter chapter) async {}
 
   @override
+  Future<void> remove(String novelKey) async {}
+
+  @override
   Future<ExtractedChapter?> find(String url) async => saved[url];
 }
 
@@ -41,6 +44,10 @@ class _ThrowingStore implements OfflineChapterStore {
 
   @override
   Future<void> save(String novelKey, ExtractedChapter chapter) =>
+      Future.error(StateError('storage down'));
+
+  @override
+  Future<void> remove(String novelKey) =>
       Future.error(StateError('storage down'));
 
   @override

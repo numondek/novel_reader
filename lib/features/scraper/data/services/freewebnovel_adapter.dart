@@ -11,9 +11,9 @@ class FreeWebNovelAdapter extends SelectorNovelAdapter {
 
   @override
   Map<String, String> requestHeaders(Uri url) => const {
-        'Referer': 'https://freewebnovel.com/',
-        'Accept-Language': 'en-US,en;q=0.9',
-      };
+    'Referer': 'https://freewebnovel.com/',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
 
   @override
   String extractTitle(dynamic document) {
@@ -22,8 +22,7 @@ class FreeWebNovelAdapter extends SelectorNovelAdapter {
       return chapter;
     }
 
-    final articleHeading =
-        document.querySelector('#article h4')?.text.trim();
+    final articleHeading = document.querySelector('#article h4')?.text.trim();
     if (articleHeading != null && articleHeading.isNotEmpty) {
       return articleHeading;
     }

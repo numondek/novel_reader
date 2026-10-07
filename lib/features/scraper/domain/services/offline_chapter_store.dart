@@ -17,6 +17,11 @@ abstract class OfflineChapterStore {
   /// Saves [chapter] as the next chapter of [novelKey].
   Future<void> save(String novelKey, ExtractedChapter chapter);
 
+  /// Forgets everything saved for [novelKey]: the chapters go back
+  /// to needing a connection, so deleting a novel frees what it took
+  /// to keep them.
+  Future<void> remove(String novelKey);
+
   /// The saved copy of [url], or `null` when it was never saved.
   Future<ExtractedChapter?> find(String url);
 }

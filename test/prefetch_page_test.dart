@@ -11,7 +11,9 @@ import 'package:novel_reader/features/prefetch/presentation/providers/offline_ch
 import 'package:novel_reader/features/scraper/data/repositories/scraper_repository.dart';
 import 'package:novel_reader/features/scraper/data/services/generic_novel_adapter.dart';
 import 'package:novel_reader/features/scraper/domain/models/extracted_chapter.dart';
+import 'package:novel_reader/features/scraper/domain/models/manhwa_series.dart';
 import 'package:novel_reader/features/scraper/domain/services/offline_chapter_store.dart';
+import 'package:novel_reader/features/scraper/presentation/providers/manhwa_shelf_provider.dart';
 import 'package:novel_reader/features/scraper/presentation/providers/scraper_providers.dart';
 
 class _SeededReadNovels extends ReadNovelsController {
@@ -21,6 +23,15 @@ class _SeededReadNovels extends ReadNovelsController {
 
   @override
   Future<List<ReadNovel>> build() async => seed;
+}
+
+class _SeededShelf extends ManhwaSeriesController {
+  _SeededShelf(this.seed);
+
+  final List<ManhwaSeries> seed;
+
+  @override
+  Future<List<ManhwaSeries>> build() async => seed;
 }
 
 class _FakeScraper extends ScraperRepository {
@@ -75,6 +86,14 @@ class _FakeStore implements OfflineChapterStore {
   }
 
   @override
+  Future<void> remove(String novelKey) async {
+    for (final chapter
+        in novels.remove(novelKey) ?? const <ExtractedChapter>[]) {
+      urls.remove(chapter.url);
+    }
+  }
+
+  @override
   Future<ExtractedChapter?> find(String url) async => urls[url];
 }
 
@@ -85,6 +104,17 @@ final ReadNovel novel = ReadNovel(
   chapterTitle: 'Chapter 1',
   readAt: DateTime(2026),
 );
+
+/// The same novel entry as if the reader were at [number].
+ReadNovel readingAt(int number) {
+  return ReadNovel(
+    key: novel.key,
+    url: 'https://example.com/$number',
+    novelTitle: 'Demo',
+    chapterTitle: 'Chapter $number',
+    readAt: DateTime(2026),
+  );
+}
 
 _FakeScraper _chain({int last = 50}) {
   final scraper = _FakeScraper();
@@ -106,10 +136,12 @@ Widget _buildApp({
   required List<ReadNovel> novels,
   required _FakeScraper scraper,
   required _FakeStore store,
+  List<ManhwaSeries> shelf = const [],
 }) {
   return ProviderScope(
     overrides: [
       readNovelsProvider.overrideWith(() => _SeededReadNovels(novels)),
+      manhwaSeriesProvider.overrideWith(() => _SeededShelf(shelf)),
       scraperRepositoryProvider.overrideWithValue(scraper),
       offlineChapterStoreProvider.overrideWithValue(store),
     ],
@@ -227,5 +259,208 @@ void main() {
     expect(find.text('Network is down'), findsOneWidget);
     expect(find.text('Save 10 chapters'), findsOneWidget);
     expect(store.novels[novel.key], isNull);
+  });
+
+  testWidgets('the order button reverses the saved chapters', (tester) async {
+    final store =
+        _FakeStore()
+          ..novels[novel.key] = [
+            ExtractedChapter(
+              title: 'Chapter 1',
+              paragraphs: const ['Text 1'],
+              url: 'https://example.com/1',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 2',
+              paragraphs: const ['Text 2'],
+              url: 'https://example.com/2',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 3',
+              paragraphs: const ['Text 3'],
+              url: 'https://example.com/3',
+            ),
+          ];
+
+    await tester.pumpWidget(
+      _buildApp(novels: [novel], scraper: _FakeScraper(), store: store),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 chapters saved offline'), findsOneWidget);
+
+    // Saved chapters start in reading order.
+    expect(find.byTooltip('Sort descending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Chapter 1')).dy,
+      lessThan(tester.getTopLeft(find.text('Chapter 3')).dy),
+    );
+
+    await tester.tap(find.byTooltip('Sort descending'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Sort ascending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Chapter 3')).dy,
+      lessThan(tester.getTopLeft(find.text('Chapter 1')).dy),
+    );
+  });
+
+  testWidgets('saving starts from the chapter being read', (tester) async {
+    final scraper = _chain();
+    final store =
+        _FakeStore()
+          ..novels[novel.key] = [
+            ExtractedChapter(
+              title: 'Chapter 1',
+              paragraphs: const ['Text 1'],
+              url: 'https://example.com/1',
+              nextChapterUrl: 'https://example.com/2',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 2',
+              paragraphs: const ['Text 2'],
+              url: 'https://example.com/2',
+              nextChapterUrl: 'https://example.com/3',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 3',
+              paragraphs: const ['Text 3'],
+              url: 'https://example.com/3',
+              nextChapterUrl: 'https://example.com/4',
+            ),
+          ];
+
+    await tester.pumpWidget(
+      _buildApp(novels: [readingAt(20)], scraper: scraper, store: store),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 chapters saved offline'), findsOneWidget);
+
+    await tester.tap(find.text('Get next 10 chapters'));
+    await tester.pumpAndSettle();
+
+    expect(scraper.requests.first, 'https://example.com/20');
+    expect(scraper.requests, hasLength(10));
+    expect(find.text('13 chapters saved offline'), findsOneWidget);
+    expect(find.text('Chapter 20'), findsOneWidget);
+  });
+
+  testWidgets('a manhwa history leaves this list to the shelf', (tester) async {
+    final history = [
+      ReadNovel(
+        key: 'manhwa:example.com/manga/grid',
+        url: 'https://example.com/manga/grid/chapter-1',
+        novelTitle: 'Grid Demo',
+        chapterTitle: 'Chapter 1',
+        readAt: DateTime(2026),
+      ),
+      ReadNovel(
+        key: 'url:example.com:manga',
+        url: 'https://example.com/manga/other/chapter-1',
+        chapterTitle: 'Chapter 1 - Panel',
+        readAt: DateTime(2026),
+      ),
+    ];
+
+    final shelf = [
+      ManhwaSeries(
+        novelKey: 'manhwa:example.com/manga/grid',
+        title: 'Grid Demo',
+        sourceUrl: 'https://example.com/manga/grid',
+        openedAt: DateTime(2026),
+      ),
+      ManhwaSeries(
+        novelKey: 'manhwa:example.com/manga/other',
+        title: 'Grid Other',
+        sourceUrl: 'https://example.com/manga/other',
+        openedAt: DateTime(2026),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      _buildApp(
+        novels: history,
+        shelf: shelf,
+        scraper: _FakeScraper(),
+        store: _FakeStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nothing to prefetch yet'), findsOneWidget);
+    expect(find.text('Grid Demo'), findsNothing);
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+  });
+
+  testWidgets('saved chapters say whether they were read', (tester) async {
+    final store =
+        _FakeStore()
+          ..novels[novel.key] = [
+            ExtractedChapter(
+              title: 'Chapter 1',
+              paragraphs: const ['Text 1'],
+              url: 'https://example.com/1',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 2',
+              paragraphs: const ['Text 2'],
+              url: 'https://example.com/2',
+            ),
+            ExtractedChapter(
+              title: 'Chapter 3',
+              paragraphs: const ['Text 3'],
+              url: 'https://example.com/3',
+            ),
+          ];
+
+    final reading = ReadNovel(
+      key: novel.key,
+      url: 'https://example.com/2',
+      novelTitle: 'Demo',
+      chapterTitle: 'Chapter 2',
+      paragraphIndex: 4,
+      paragraphCount: 11,
+      chapterProgress: const {
+        'https://example.com/1': [2, 3],
+        'https://example.com/2': [4, 11],
+      },
+      readAt: DateTime(2026),
+    );
+
+    await tester.pumpWidget(
+      _buildApp(novels: [reading], scraper: _FakeScraper(), store: store),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 chapters saved offline'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
+    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    expect(find.text('100% read'), findsOneWidget);
+    expect(find.text('40% read'), findsOneWidget);
+  });
+
+  testWidgets('a saved chapter title without a number shows it', (
+    tester,
+  ) async {
+    final store =
+        _FakeStore()
+          ..novels[novel.key] = [
+            ExtractedChapter(
+              title: 'The duel',
+              paragraphs: const ['Text'],
+              url: 'https://example.com/7',
+            ),
+          ];
+
+    await tester.pumpWidget(
+      _buildApp(novels: [novel], scraper: _FakeScraper(), store: store),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 chapters saved offline'), findsOneWidget);
+    expect(find.text('#7 · The duel'), findsOneWidget);
+    expect(find.text('The duel'), findsNothing);
   });
 }

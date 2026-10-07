@@ -19,7 +19,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   static const List<_FeatureTile> _features = [
     _FeatureTile(Icons.menu_book_outlined, 'Novels', 'Browse and search novels'),
-    _FeatureTile(Icons.travel_explore_outlined, 'Scraper', 'Import from sources'),
+    _FeatureTile(Icons.travel_explore_outlined, 'Manhwa', 'Save & read offline'),
     _FeatureTile(Icons.translate_outlined, 'Translation', 'Translate chapters'),
     _FeatureTile(Icons.article_outlined, 'Reader', 'Continue reading'),
     _FeatureTile(Icons.headphones_outlined, 'Audio', 'Listen with TTS'),

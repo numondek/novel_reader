@@ -1,4 +1,4 @@
-﻿import 'package:auto_route/auto_route.dart';
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,14 +37,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _loadVoices() async {
     try {
-      final voices = [
-        ...await ref.read(ttsServiceProvider).getVoices(),
-      ];
+      final voices = [...await ref.read(ttsServiceProvider).getVoices()];
 
       voices.sort(
-        (a, b) => a.label
-            .toLowerCase()
-            .compareTo(b.label.toLowerCase()),
+        (a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()),
       );
 
       if (!mounted) return;
@@ -78,74 +74,72 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
 
       _spokeTest = true;
-      await tts.speak(
-        'This is how your reading voice sounds.',
-      );
+      await tts.speak('This is how your reading voice sounds.');
     } catch (_) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Could not play a test voice.'),
-          ),
+          const SnackBar(content: Text('Could not play a test voice.')),
         );
     }
   }
 
-  bool _startsWithEn(String locale) =>
-      locale.toLowerCase().startsWith('en');
+  bool _startsWithEn(String locale) => locale.toLowerCase().startsWith('en');
 
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
-    final selectedVoice = _voices.any(
-      (voice) => voice.name == settings.voiceName,
-    )
-        ? settings.voiceName
-        : null;
+    final selectedVoice =
+        _voices.any((voice) => voice.name == settings.voiceName)
+            ? settings.voiceName
+            : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
+          _sectionHeader(context, 'Display'),
+          SwitchListTile(
+            title: const Text('Dark mode'),
+            subtitle: const Text('Use the dark theme'),
+            value: settings.darkMode,
+            onChanged:
+                (value) =>
+                    ref.read(settingsProvider.notifier).setDarkMode(value),
+          ),
           _sectionHeader(context, 'Reading'),
           _sliderTile(
             title: 'Font size',
             valueText: '${settings.fontSize} px',
-            value: settings.fontSize
-                .toDouble()
-                .clamp(
-                  SettingsController.minFontSize.toDouble(),
-                  SettingsController.maxFontSize.toDouble(),
-                ),
+            value: settings.fontSize.toDouble().clamp(
+              SettingsController.minFontSize.toDouble(),
+              SettingsController.maxFontSize.toDouble(),
+            ),
             min: SettingsController.minFontSize.toDouble(),
             max: SettingsController.maxFontSize.toDouble(),
             divisions:
-                SettingsController.maxFontSize -
-                    SettingsController.minFontSize,
-            onChanged: (value) => ref
-                .read(settingsProvider.notifier)
-                .setFontSize(value.round()),
+                SettingsController.maxFontSize - SettingsController.minFontSize,
+            onChanged:
+                (value) => ref
+                    .read(settingsProvider.notifier)
+                    .setFontSize(value.round()),
           ),
           SwitchListTile(
             title: const Text('Auto-scroll'),
-            subtitle: const Text(
-              'Follow the narration automatically',
-            ),
+            subtitle: const Text('Follow the narration automatically'),
             value: settings.autoScroll,
-            onChanged: (value) => ref
-                .read(settingsProvider.notifier)
-                .setAutoScroll(value),
+            onChanged:
+                (value) =>
+                    ref.read(settingsProvider.notifier).setAutoScroll(value),
           ),
           _sectionHeader(context, 'Voice (Text-to-speech)'),
           _sliderTile(
             title: 'Speech rate',
-            valueText:
-                '${settings.speechRate.toStringAsFixed(2)}\u00d7',
+            valueText: '${settings.speechRate.toStringAsFixed(2)}\u00d7',
             value: settings.speechRate.clamp(
               SettingsController.minSpeechRate,
               SettingsController.maxSpeechRate,
@@ -153,9 +147,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             min: SettingsController.minSpeechRate,
             max: SettingsController.maxSpeechRate,
             divisions: 18,
-            onChanged: (value) => ref
-                .read(settingsProvider.notifier)
-                .setSpeechRate(value),
+            onChanged:
+                (value) =>
+                    ref.read(settingsProvider.notifier).setSpeechRate(value),
           ),
           ListTile(
             title: const Text('Voice'),
@@ -164,56 +158,54 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ? 'System default'
                   : settings.voiceName!,
             ),
-            trailing: _loadingVoices
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
-                  )
-                : ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 220,
-                    ),
-                    child: DropdownButton<String?>(
-                    value: selectedVoice,
-                    isExpanded: true,
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('System default'),
-                      ),
-                      for (final voice in _voices)
-                        DropdownMenuItem<String?>(
-                          value: voice.name,
-                          child: Text(
-                            voice.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+            trailing:
+                _loadingVoices
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: DropdownButton<String?>(
+                        value: selectedVoice,
+                        isExpanded: true,
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('System default'),
                           ),
-                        ),
-                    ],
-                    onChanged: _voices.isEmpty
-                        ? null
-                        : (value) {
-                            if (value == null) {
-                              ref
-                                  .read(settingsProvider.notifier)
-                                  .setVoice(null, null);
-                              return;
-                            }
+                          for (final voice in _voices)
+                            DropdownMenuItem<String?>(
+                              value: voice.name,
+                              child: Text(
+                                voice.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged:
+                            _voices.isEmpty
+                                ? null
+                                : (value) {
+                                  if (value == null) {
+                                    ref
+                                        .read(settingsProvider.notifier)
+                                        .setVoice(null, null);
+                                    return;
+                                  }
 
-                            final voice = _voices.firstWhere(
-                              (item) => item.name == value,
-                            );
+                                  final voice = _voices.firstWhere(
+                                    (item) => item.name == value,
+                                  );
 
-                            ref
-                                .read(settingsProvider.notifier)
-                                .setVoice(voice.name, voice.locale);
-                          },
+                                  ref
+                                      .read(settingsProvider.notifier)
+                                      .setVoice(voice.name, voice.locale);
+                                },
+                      ),
                     ),
-                  ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -235,10 +227,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
       child: Text(
         title,
-        style: Theme.of(context)
-            .textTheme
-            .titleSmall
-            ?.copyWith(color: color, fontWeight: FontWeight.w600),
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
@@ -262,9 +254,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               Expanded(child: Text(title)),
               Text(
                 valueText,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ],
           ),

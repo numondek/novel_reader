@@ -199,6 +199,33 @@ void main() {
     expect(library.savedPages, [1, 3]);
   });
 
+  testWidgets('the chapter drawer order can be reversed', (tester) async {
+    await tester.pumpWidget(buildReader());
+    await loadDocument(tester);
+
+    await tester.tap(find.byTooltip('Chapters'));
+    await tester.pumpAndSettle();
+
+    Finder inDrawer(String text) =>
+        find.descendant(of: find.byType(Drawer), matching: find.text(text));
+
+    // Document chapters start in reading order.
+    expect(find.byTooltip('Sort descending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(inDrawer('Chapter 1')).dy,
+      lessThan(tester.getTopLeft(inDrawer('Chapter 2')).dy),
+    );
+
+    await tester.tap(find.byTooltip('Sort descending'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Sort ascending'), findsOneWidget);
+    expect(
+      tester.getTopLeft(inDrawer('Chapter 2')).dy,
+      lessThan(tester.getTopLeft(inDrawer('Chapter 1')).dy),
+    );
+  });
+
   testWidgets('next and previous move between chapters', (tester) async {
     await tester.pumpWidget(buildReader());
     await loadDocument(tester);
