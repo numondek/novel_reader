@@ -17,6 +17,7 @@ class ReadNovel {
     this.paragraphIndex = 0,
     this.paragraphCount = 0,
     this.chapterProgress = const {},
+    this.links = const [],
   });
 
   factory ReadNovel.fromJson(Map<String, Object?> json) {
@@ -31,6 +32,7 @@ class ReadNovel {
       paragraphIndex: (json['paragraphIndex'] as num?)?.toInt() ?? 0,
       paragraphCount: (json['paragraphCount'] as num?)?.toInt() ?? 0,
       chapterProgress: _progressFrom(json['chapterProgress']),
+      links: (json['links'] as List?)?.whereType<String>().toList() ?? const [],
       readAt: DateTime.fromMillisecondsSinceEpoch(json['readAt'] as int? ?? 0),
     );
   }
@@ -95,6 +97,10 @@ class ReadNovel {
   final Map<String, List<int>> chapterProgress;
   final DateTime readAt;
 
+  /// Other links of this novel — mirrors, another site's copy —
+  /// kept so the list can offer them without losing them.
+  final List<String> links;
+
   /// What the list shows as the entry's name, preferring English.
   String get title =>
       novelTitleEn ?? novelTitle ?? chapterTitleEn ?? chapterTitle;
@@ -151,6 +157,24 @@ class ReadNovel {
     return '${(share * 100).round()}%';
   }
 
+  /// This entry with its [links] replaced — every other field,
+  /// progress included, stays as it was.
+  ReadNovel withLinks(List<String> links) {
+    return ReadNovel(
+      key: key,
+      url: url,
+      novelTitle: novelTitle,
+      novelTitleEn: novelTitleEn,
+      chapterTitle: chapterTitle,
+      chapterTitleEn: chapterTitleEn,
+      paragraphIndex: paragraphIndex,
+      paragraphCount: paragraphCount,
+      chapterProgress: chapterProgress,
+      links: links,
+      readAt: readAt,
+    );
+  }
+
   static String keyForNovel(String url, String novelTitle) {
     final uri = Uri.tryParse(url);
     return 'novel:${uri?.host ?? ''}:$novelTitle';
@@ -195,6 +219,7 @@ class ReadNovel {
       'chapterProgress': {
         for (final entry in chapterProgress.entries) entry.key: entry.value,
       },
+      'links': links,
       'readAt': readAt.millisecondsSinceEpoch,
     };
   }

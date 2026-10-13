@@ -107,6 +107,19 @@ final scraperControllerProvider =
         images: ref.read(offlineImageStoreProvider),
         rememberSeries:
             (series) => ref.read(manhwaSeriesProvider.notifier).record(series),
+        seriesExtras: (novelKey) {
+          final shelf =
+              ref.read(manhwaSeriesProvider).valueOrNull ??
+              const <ManhwaSeries>[];
+
+          for (final entry in shelf) {
+            if (entry.novelKey == novelKey) {
+              return entry.extraUrls;
+            }
+          }
+
+          return const [];
+        },
       );
     });
 
@@ -118,6 +131,7 @@ class ScraperController extends StateNotifier<ScraperState> {
     required this.store,
     this.images,
     this.rememberSeries,
+    this.seriesExtras,
   }) : super(const ScraperState());
 
   final ScraperRepository scraper;
@@ -128,6 +142,10 @@ class ScraperController extends StateNotifier<ScraperState> {
 
   /// Puts the opened series on the Manhwa page's shelf.
   final Future<void> Function(ManhwaSeries series)? rememberSeries;
+
+  /// The extra contents pages the shelf keeps for [novelKey], so an
+  /// opening can merge their chapters into the list.
+  final List<String> Function(String novelKey)? seriesExtras;
 
   /// Lists the chapters found on [rawUrl]'s page.
   Future<void> open(String rawUrl) async {
@@ -189,9 +207,18 @@ class ScraperController extends StateNotifier<ScraperState> {
         url: (link) => link.url,
       );
 
+      // The shelf key stays the base page's own, so a series never
+      // changes identity just because an extra page joined it.
+      final novelKey = manhwaNovelKey(uri, links: ordered);
+
+      // Chapters from the extra contents pages the shelf holds join
+      // the base page's, and the whole set goes back into reading
+      // order — one series, one list.
+      final merged = await _withExtras(ordered, novelKey, url);
+
       final chapters = <ScrapeChapter>[];
 
-      for (final link in ordered) {
+      for (final link in merged) {
         chapters.add(
           ScrapeChapter(
             title: link.title,
@@ -201,14 +228,66 @@ class ScraperController extends StateNotifier<ScraperState> {
         );
       }
 
-      final novelKey = manhwaNovelKey(uri, links: ordered);
-
       state = ScraperState(url: url, novelKey: novelKey, chapters: chapters);
 
       await _shelve(html, uri, novelKey, sourceUrl: url);
     } catch (error) {
       state = ScraperState(url: url, error: _messageOf(error));
     }
+  }
+
+  /// [ordered] with the chapters of every extra contents page the
+  /// shelf keeps for [novelKey] merged in, back in reading order.
+  /// [sourceUrl] itself is skipped, and an extra that cannot be
+  /// loaded is dropped — the base page's chapters still open.
+  Future<List<ChapterLink>> _withExtras(
+    List<ChapterLink> ordered,
+    String novelKey,
+    String sourceUrl,
+  ) async {
+    final extras = seriesExtras?.call(novelKey) ?? const <String>[];
+
+    if (extras.isEmpty) {
+      return ordered;
+    }
+
+    final merged = [...ordered];
+    final seen = <String>{for (final link in ordered) link.url};
+    var grew = false;
+
+    for (final extra in extras) {
+      final uri = Uri.tryParse(extra);
+
+      if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+        continue;
+      }
+      if (extra == sourceUrl) {
+        continue;
+      }
+
+      try {
+        final html = await scraper.loadHtml(extra);
+
+        for (final link in findChapterLinks(html, uri)) {
+          if (seen.add(link.url)) {
+            merged.add(link);
+            grew = true;
+          }
+        }
+      } catch (_) {
+        // An extra that cannot load must not stop the opening.
+      }
+    }
+
+    if (!grew) {
+      return ordered;
+    }
+
+    return chaptersInReadingOrder(
+      merged,
+      title: (link) => link.title,
+      url: (link) => link.url,
+    );
   }
 
   /// Leaves the chapter list and returns to the shelf.

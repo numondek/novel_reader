@@ -1,4 +1,4 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:novel_reader/core/network/dio_client.dart';
 import 'package:novel_reader/features/novels/domain/models/chapter.dart';
 import 'package:novel_reader/features/reader/presentation/providers/reader_controller.dart';
@@ -32,10 +32,7 @@ class _ThrowingTranslator implements TranslationService {
 
 class _FakeScraper extends ScraperRepository {
   _FakeScraper()
-      : super(
-          dioClient: DioClient(),
-          adapter: GenericNovelAdapter(),
-        );
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
 
   @override
   Future<ExtractedChapter> extractChapter(String url) async {
@@ -48,16 +45,16 @@ class _FakeScraper extends ScraperRepository {
 }
 
 ExtractedChapter cjkChapter() => const ExtractedChapter(
-      title: '第一章 十小圣之首',
-      paragraphs: ['通天妖圣现身，妖庭天命另有其人'],
-      url: 'https://example.com/chapter-1',
-    );
+  title: '第一章 十小圣之首',
+  paragraphs: ['通天妖圣现身，妖庭天命另有其人'],
+  url: 'https://example.com/chapter-1',
+);
 
 ExtractedChapter englishChapter() => const ExtractedChapter(
-      title: 'Chapter 1: The Beginning',
-      paragraphs: ['The hero walked into the misty valley.'],
-      url: 'https://example.com/chapter-2',
-    );
+  title: 'Chapter 1: The Beginning',
+  paragraphs: ['The hero walked into the misty valley.'],
+  url: 'https://example.com/chapter-2',
+);
 
 Future<void> flush() => Future<void>.delayed(Duration.zero);
 
@@ -76,9 +73,7 @@ void main() {
     expect(translator.calls, 2);
     expect(state.isTranslating, isFalse);
     expect(state.translatedTitle, 'EN: 第一章 十小圣之首');
-    expect(state.translatedParagraphs, [
-      'EN: 通天妖圣现身，妖庭天命另有其人',
-    ]);
+    expect(state.translatedParagraphs, ['EN: 通天妖圣现身，妖庭天命另有其人']);
     expect(state.chapter?.status, ChapterStatus.ready);
   });
 

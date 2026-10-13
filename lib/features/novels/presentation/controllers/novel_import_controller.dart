@@ -4,13 +4,11 @@ import '../../../scraper/domain/models/extracted_chapter.dart';
 import '../../../scraper/presentation/providers/scraper_providers.dart';
 
 final novelImportControllerProvider =
-    NotifierProvider<NovelImportController,
-        AsyncValue<ExtractedChapter?>>(
-  NovelImportController.new,
-);
+    NotifierProvider<NovelImportController, AsyncValue<ExtractedChapter?>>(
+      NovelImportController.new,
+    );
 
-class NovelImportController
-    extends Notifier<AsyncValue<ExtractedChapter?>> {
+class NovelImportController extends Notifier<AsyncValue<ExtractedChapter?>> {
   @override
   AsyncValue<ExtractedChapter?> build() {
     return const AsyncData(null);
@@ -20,19 +18,13 @@ class NovelImportController
     state = const AsyncLoading();
 
     try {
-      final repository = ref.read(
-        scraperRepositoryProvider,
-      );
+      final repository = ref.read(scraperRepositoryProvider);
 
-      final chapter =
-          await repository.extractChapter(url);
+      final chapter = await repository.extractChapter(url);
 
       state = AsyncData(chapter);
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
     }
   }
 

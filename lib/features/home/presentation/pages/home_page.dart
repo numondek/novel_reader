@@ -14,16 +14,27 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
-  final TextEditingController _urlController =
-      TextEditingController();
+  final TextEditingController _urlController = TextEditingController();
 
   static const List<_FeatureTile> _features = [
-    _FeatureTile(Icons.menu_book_outlined, 'Novels', 'Browse and search novels'),
-    _FeatureTile(Icons.travel_explore_outlined, 'Manhwa', 'Save & read offline'),
+    _FeatureTile(
+      Icons.menu_book_outlined,
+      'Novels',
+      'Browse and search novels',
+    ),
+    _FeatureTile(
+      Icons.travel_explore_outlined,
+      'Manhwa',
+      'Save & read offline',
+    ),
     _FeatureTile(Icons.translate_outlined, 'Translation', 'Translate chapters'),
     _FeatureTile(Icons.article_outlined, 'Reader', 'Continue reading'),
     _FeatureTile(Icons.headphones_outlined, 'Audio', 'Listen with TTS'),
-    _FeatureTile(Icons.download_for_offline_outlined, 'Prefetch', 'Offline chapters'),
+    _FeatureTile(
+      Icons.download_for_offline_outlined,
+      'Prefetch',
+      'Offline chapters',
+    ),
     _FeatureTile(Icons.library_books_outlined, 'Library', 'Your collection'),
     _FeatureTile(Icons.settings_outlined, 'Settings', 'Preferences'),
   ];
@@ -38,19 +49,13 @@ class _HomePageState extends ConsumerState<HomePage> {
     final url = _urlController.text.trim();
 
     if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a novel URL'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a novel URL')));
       return;
     }
 
-    context.router.push(
-      NovelImportRoute(
-        url: url,
-      ),
-    );
+    context.router.push(NovelImportRoute(url: url));
   }
 
   @override
@@ -67,8 +72,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(height: 4),
           Text(
             'What would you like to do?',
-            style: theme.textTheme.bodyLarge
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 24),
           Card(
@@ -169,8 +175,9 @@ class _FeatureCard extends StatelessWidget {
                 tile.subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),

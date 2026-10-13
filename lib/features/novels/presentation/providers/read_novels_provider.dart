@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/storage/database.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../scraper/data/services/series_path.dart';
 import '../../../scraper/domain/models/manhwa_series.dart';
 import '../../../scraper/presentation/providers/manhwa_shelf_provider.dart';
@@ -297,6 +298,28 @@ class ReadNovelsController extends AsyncNotifier<List<ReadNovel>> {
 
       progress[url] = [position < 0 ? 0 : position, count];
 
+      // The links the entry carries: what this entry already had,
+      // plus whatever the keys folded into it held.
+      final links = <String>[];
+
+      void keepLinks(ReadNovel? source) {
+        if (source == null) return;
+
+        for (final link in source.links) {
+          if (!links.contains(link)) {
+            links.add(link);
+          }
+        }
+      }
+
+      keepLinks(existing);
+
+      for (final source in current) {
+        if (folded.contains(source.key)) {
+          keepLinks(source);
+        }
+      }
+
       var nameEn =
           existing?.novelTitleEn ??
           (titled != null && titled.novelTitle == name
@@ -356,6 +379,7 @@ class ReadNovelsController extends AsyncNotifier<List<ReadNovel>> {
         paragraphIndex: position < 0 ? 0 : position,
         paragraphCount: count,
         chapterProgress: progress,
+        links: links,
         readAt: _nextReadAt(),
       );
 
@@ -373,6 +397,36 @@ class ReadNovelsController extends AsyncNotifier<List<ReadNovel>> {
     return _enqueue(() async {
       final current = await _loaded();
       await _save(current.where((entry) => entry.key != key).toList());
+    });
+  }
+
+  /// Keeps another link under [key], so the list can offer every
+  /// place the novel can be read from. An unreadable URL or a link
+  /// the entry already carries changes nothing.
+  Future<void> addLink(String key, String url) {
+    return _enqueue(() async {
+      final link = normalizeUrl(url);
+      if (link == null) {
+        return;
+      }
+
+      final current = await _loaded();
+      final updated = <ReadNovel>[];
+      var found = false;
+
+      for (final entry in current) {
+        if (entry.key != key || entry.links.contains(link)) {
+          updated.add(entry);
+          continue;
+        }
+
+        found = true;
+        updated.add(entry.withLinks([...entry.links, link]));
+      }
+
+      if (found) {
+        await _save(updated);
+      }
     });
   }
 

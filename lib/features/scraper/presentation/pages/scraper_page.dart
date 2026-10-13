@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/app_router.dart';
+import '../../../../core/widgets/add_link_sheet.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/links_sheet.dart';
 import '../../../novels/domain/models/read_novel.dart';
 import '../../../novels/presentation/providers/read_novels_provider.dart';
 import '../../../prefetch/presentation/providers/offline_chapter_store_provider.dart';
@@ -56,7 +58,16 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manhwa')),
+      appBar: AppBar(
+        title: const Text('Manhwa'),
+        actions: [
+          IconButton(
+            tooltip: 'Add link',
+            icon: const Icon(Icons.add),
+            onPressed: state.isLoading || state.isSavingAll ? null : _addLink,
+          ),
+        ],
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -96,6 +107,51 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
         ],
       ),
     );
+  }
+
+  /// Opens a link pasted into the add sheet: the field is filled in
+  /// first so the URL stays visible while the page loads, then the
+  /// normal open flow takes over — which puts the series on the shelf.
+  Future<void> _addLink() async {
+    final url = await showAddLinkSheet(context);
+
+    if (url == null || !mounted) return;
+
+    setState(() => _urlController.text = url);
+
+    _open();
+  }
+
+  /// Offers the contents pages a shelf card's series is listed on
+  /// and keeps one more: the series then reopens with the extra
+  /// page's chapters merged into its list. Tapping a listed link
+  /// just reopens that merged list.
+  Future<void> _addSeriesLink(ManhwaSeries series) async {
+    final url = await showLinksSheet(
+      context,
+      title: 'Contents links',
+      hint: 'Merge another contents page into this series.',
+      links: [series.sourceUrl, ...series.extraUrls],
+      onOpen: (_) => _openContents(series),
+    );
+
+    if (url == null || !mounted) return;
+
+    await ref
+        .read(manhwaSeriesProvider.notifier)
+        .addContentsUrl(series.novelKey, url);
+
+    if (!mounted) return;
+
+    await _openContents(series);
+  }
+
+  /// Opens the series' contents page — the list that also carries
+  /// whatever extra pages the shelf holds for it.
+  Future<void> _openContents(ManhwaSeries series) async {
+    setState(() => _urlController.text = series.sourceUrl);
+
+    await ref.read(scraperControllerProvider.notifier).open(series.sourceUrl);
   }
 
   void _open() {
@@ -152,7 +208,7 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
         ref.watch(manhwaSeriesProvider).valueOrNull ?? const <ManhwaSeries>[];
 
     if (shelf.isNotEmpty) {
-      return _shelf(shelf, theme);
+      return _shelf(shelf, theme, busy: state.isLoading);
     }
 
     if (state.error != null) {
@@ -223,7 +279,11 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
   }
 
   /// The shelf: every manhwa opened before, cover first.
-  Widget _shelf(List<ManhwaSeries> series, ThemeData theme) {
+  Widget _shelf(
+    List<ManhwaSeries> series,
+    ThemeData theme, {
+    required bool busy,
+  }) {
     final counts =
         ref.watch(manhwaSavedCountsProvider).valueOrNull ??
         const <String, int>{};
@@ -247,6 +307,7 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
           theme,
           counts[entry.novelKey] ?? 0,
           readEntryFor(history, entry.novelKey),
+          busy: busy,
         );
       },
     );
@@ -256,8 +317,9 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
     ManhwaSeries series,
     ThemeData theme,
     int saved,
-    ReadNovel? entry,
-  ) {
+    ReadNovel? entry, {
+    required bool busy,
+  }) {
     final lastUrl = entry?.url ?? '';
     final resumeUrl = lastUrl.isEmpty ? null : lastUrl;
     final percent = entry?.readPercent(lastUrl);
@@ -287,6 +349,21 @@ class _ScraperPageState extends ConsumerState<ScraperPage> {
                         tooltip: 'Delete',
                         onPressed: () => _delete(series),
                         icon: const Icon(Icons.delete_outline),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Material(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      shape: const CircleBorder(),
+                      elevation: 1,
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'Links',
+                        onPressed: busy ? null : () => _addSeriesLink(series),
+                        icon: const Icon(Icons.link),
                       ),
                     ),
                   ),

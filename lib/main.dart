@@ -17,9 +17,7 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         mediaSessionProvider.overrideWithValue(mediaSession),
-        playbackInterruptionsProvider.overrideWithValue(
-          playbackInterruptions,
-        ),
+        playbackInterruptionsProvider.overrideWithValue(playbackInterruptions),
       ],
       child: const NovelFlowApp(),
     ),

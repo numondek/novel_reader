@@ -61,6 +61,11 @@ Finder _button(String tooltip) => find.ancestor(
   matching: find.byType(IconButton),
 );
 
+/// The provider under a decode-capped [ResizeImage], so the type
+/// checks see the original file or memory image.
+ImageProvider<dynamic> _raw(ImageProvider<dynamic> provider) =>
+    provider is ResizeImage ? provider.imageProvider : provider;
+
 Widget _buildApp(
   _FakeScraper scraper,
   ExtractedChapter chapter, {
@@ -116,10 +121,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Image), findsNWidgets(3));
-    expect(
-      tester.widgetList<Image>(find.byType(Image)).map((image) => image.image),
-      everyElement(isA<MemoryImage>()),
-    );
+
+    // Every picture decodes at most to the screen's width.
+    final providers = tester
+        .widgetList<Image>(find.byType(Image))
+        .map((image) => image.image);
+
+    expect(providers, everyElement(isA<ResizeImage>()));
+    expect(providers.map(_raw), everyElement(isA<MemoryImage>()));
+
     expect(loader.referers, everyElement('https://example.com/ch-1'));
     expect(find.byTooltip('Translate to English'), findsNothing);
     expect(find.byTooltip('Font size'), findsNothing);
@@ -160,8 +170,8 @@ void main() {
 
     final images = tester.widgetList<Image>(find.byType(Image)).toList();
 
-    expect(images.first.image, isA<FileImage>());
-    expect(images.last.image, isA<MemoryImage>());
+    expect(_raw(images.first.image), isA<FileImage>());
+    expect(_raw(images.last.image), isA<MemoryImage>());
   });
 
   testWidgets('next chapter still works from a picture chapter', (

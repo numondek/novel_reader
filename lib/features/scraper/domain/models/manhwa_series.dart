@@ -8,6 +8,7 @@ class ManhwaSeries {
     required this.openedAt,
     this.coverUrl,
     this.coverPath,
+    this.extraUrls = const [],
   });
 
   factory ManhwaSeries.fromJson(Object? json) {
@@ -19,6 +20,8 @@ class ManhwaSeries {
       sourceUrl: map['sourceUrl'] as String? ?? '',
       coverUrl: map['coverUrl'] as String?,
       coverPath: map['coverPath'] as String?,
+      extraUrls:
+          (map['extraUrls'] as List?)?.whereType<String>().toList() ?? const [],
       openedAt: DateTime.fromMillisecondsSinceEpoch(
         (map['openedAt'] as num?)?.toInt() ?? 0,
       ),
@@ -37,15 +40,21 @@ class ManhwaSeries {
   /// Local copy of [coverUrl], when the cover could be downloaded.
   final String? coverPath;
 
+  /// Other contents pages of the same series: opening the series
+  /// merges their chapters into the list, so a series split over
+  /// two pages (or mirrored elsewhere) still reads as one.
+  final List<String> extraUrls;
+
   final DateTime openedAt;
 
-  ManhwaSeries copyWith({String? coverPath}) {
+  ManhwaSeries copyWith({String? coverPath, List<String>? extraUrls}) {
     return ManhwaSeries(
       novelKey: novelKey,
       title: title,
       sourceUrl: sourceUrl,
       coverUrl: coverUrl,
       coverPath: coverPath ?? this.coverPath,
+      extraUrls: extraUrls ?? this.extraUrls,
       openedAt: openedAt,
     );
   }
@@ -59,6 +68,7 @@ class ManhwaSeries {
       'sourceUrl': sourceUrl,
       if (coverUrl != null) 'coverUrl': coverUrl,
       if (coverPath != null) 'coverPath': coverPath,
+      'extraUrls': extraUrls,
       'openedAt': openedAt.millisecondsSinceEpoch,
     };
   }

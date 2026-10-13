@@ -81,4 +81,52 @@ void main() {
 
     expect(list.map((entry) => entry.title), ['First', 'Second']);
   });
+
+  test('a contents link survives a reopening of the series', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final controller = container.read(manhwaSeriesProvider.notifier);
+
+    await controller.record(_series('manhwa:site.com/manga/demo', 'Grid Demo'));
+    await controller.addContentsUrl(
+      'manhwa:site.com/manga/demo',
+      'site.com/manga/demo-part2',
+    );
+
+    // Reopening the series must not drop the extra page.
+    await controller.record(_series('manhwa:site.com/manga/demo', 'Grid Demo'));
+
+    final list = await container.read(manhwaSeriesProvider.future);
+
+    expect(list, hasLength(1));
+    expect(list.single.extraUrls, ['https://site.com/manga/demo-part2']);
+  });
+
+  test('a contents link already on the card is kept once', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final controller = container.read(manhwaSeriesProvider.notifier);
+
+    await controller.record(_series('manhwa:site.com/manga/demo', 'Grid Demo'));
+    await controller.addContentsUrl(
+      'manhwa:site.com/manga/demo',
+      'https://site.com/manga/demo-part2',
+    );
+    await controller.addContentsUrl(
+      'manhwa:site.com/manga/demo',
+      'site.com/manga/demo-part2',
+    );
+    // A series no longer on the shelf keeps nothing.
+    await controller.addContentsUrl(
+      'manhwa:site.com/manga/gone',
+      'site.com/manga/other',
+    );
+
+    final list = await container.read(manhwaSeriesProvider.future);
+
+    expect(list, hasLength(1));
+    expect(list.single.extraUrls, ['https://site.com/manga/demo-part2']);
+  });
 }

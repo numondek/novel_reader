@@ -111,13 +111,13 @@ class _FakePlaybackInterruptions implements PlaybackInterruptions {
 }
 
 void main() {
-  test('speaks CJK text with the Chinese language', () async {
+  test('Chinese text keeps the default language', () async {
     final fake = _FakeTts();
     final controller = ReaderTtsController(tts: fake);
 
     await controller.play(['你好世界', '第二段']);
 
-    expect(fake.language, 'zh-CN');
+    expect(fake.language, 'en-US');
     expect(fake.rate, ReaderTtsController.speechRate);
     expect(fake.spoken, ['你好世界']);
     expect(controller.state.isPlaying, isTrue);
@@ -342,7 +342,7 @@ void main() {
     expect(fake.voiceLocale, 'en-US');
   });
 
-  test('skips the selected voice for a different language', () async {
+  test('keeps the selected voice when the text is Chinese', () async {
     final fake = _FakeTts();
     final controller = ReaderTtsController(
       tts: fake,
@@ -352,8 +352,38 @@ void main() {
 
     await controller.play(['你好世界']);
 
+    expect(fake.language, 'en-US');
+    expect(fake.voiceName, 'Alice');
+    expect(fake.voiceLocale, 'en-US');
+  });
+
+  test('a Chinese paragraph does not switch the language', () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(tts: fake);
+
+    await controller.play(['Hello', '你好世界']);
+    fake.completion!();
+    await flush();
+
+    expect(fake.language, 'en-US');
+    expect(fake.spoken, ['Hello', '你好世界']);
+  });
+
+  test('a selected Chinese voice is used for every paragraph', () async {
+    final fake = _FakeTts();
+    final controller = ReaderTtsController(
+      tts: fake,
+      settings: () => const AppSettings(voiceName: 'Li', voiceLocale: 'zh-CN'),
+    );
+
+    await controller.play(['Hello', '你好世界']);
+    fake.completion!();
+    await flush();
+
     expect(fake.language, 'zh-CN');
-    expect(fake.voiceName, isNull);
+    expect(fake.voiceName, 'Li');
+    expect(fake.voiceLocale, 'zh-CN');
+    expect(fake.spoken, ['Hello', '你好世界']);
   });
 
   test(

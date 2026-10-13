@@ -76,10 +76,10 @@ void main() {
 
       final chapter = await adapter.extract(html: refined, url: url);
 
-    expect(chapter.paragraphs, [
-      'It was incomprehensible and unbelievable.',
-      'He remained silent.',
-    ]);
+      expect(chapter.paragraphs, [
+        'It was incomprehensible and unbelievable.',
+        'He remained silent.',
+      ]);
       expect(chapter.title, 'Chapter 1526');
       expect(
         chapter.nextChapterUrl,

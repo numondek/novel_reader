@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:novel_reader/app/router/app_router.dart';
+import 'package:novel_reader/core/network/dio_client.dart';
+import 'package:novel_reader/core/widgets/add_link_sheet.dart';
+import 'package:novel_reader/core/widgets/links_sheet.dart';
 import 'package:novel_reader/features/novels/domain/models/read_novel.dart';
+import 'package:novel_reader/features/novels/presentation/pages/novel_import_page.dart';
 import 'package:novel_reader/features/novels/presentation/pages/novels_page.dart';
 import 'package:novel_reader/features/novels/presentation/providers/read_novels_provider.dart';
 import 'package:novel_reader/features/prefetch/presentation/providers/offline_chapter_store_provider.dart';
 import 'package:novel_reader/features/prefetch/presentation/widgets/offline_chapters_sheet.dart';
+import 'package:novel_reader/features/scraper/data/repositories/scraper_repository.dart';
+import 'package:novel_reader/features/scraper/data/services/generic_novel_adapter.dart';
 import 'package:novel_reader/features/scraper/domain/models/extracted_chapter.dart';
 import 'package:novel_reader/features/scraper/domain/models/manhwa_series.dart';
 import 'package:novel_reader/features/scraper/domain/services/offline_chapter_store.dart';
 import 'package:novel_reader/features/scraper/presentation/providers/manhwa_shelf_provider.dart';
+import 'package:novel_reader/features/scraper/presentation/providers/scraper_providers.dart';
 
 class _SeededReadNovels extends ReadNovelsController {
   _SeededReadNovels(this.seed);
@@ -52,6 +60,18 @@ class _FakeStore implements OfflineChapterStore {
 
   @override
   Future<ExtractedChapter?> find(String url) async => null;
+}
+
+/// Fails every import, which is enough to watch the link travel from
+/// the sheet into the import page without opening a reader.
+class _ThrowingScraper extends ScraperRepository {
+  _ThrowingScraper()
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
+
+  @override
+  Future<ExtractedChapter> extractChapter(String url) async {
+    throw Exception('No chapter at $url');
+  }
 }
 
 List<ReadNovel> seedEntries() {
@@ -170,6 +190,66 @@ void main() {
 
     expect(find.text('No read novels yet'), findsOneWidget);
     expect(find.byTooltip('Delete'), findsNothing);
+    expect(find.text('Add a link'), findsOneWidget);
+  });
+
+  testWidgets('the app bar plus opens the link sheet', (tester) async {
+    await tester.pumpWidget(buildPage(seedEntries()));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Add link'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AddLinkSheet), findsOneWidget);
+
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AddLinkSheet), findsNothing);
+    expect(find.text('Nova'), findsOneWidget);
+  });
+
+  testWidgets('the empty list offers a link to add', (tester) async {
+    await tester.pumpWidget(buildPage(const []));
+    await tester.pump();
+
+    await tester.tap(find.text('Add a link'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AddLinkSheet), findsOneWidget);
+  });
+
+  testWidgets('adding a link opens the import flow', (tester) async {
+    final router = AppRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          readNovelsProvider.overrideWith(() => _SeededReadNovels(const [])),
+          manhwaSeriesProvider.overrideWith(() => _SeededShelf(const [])),
+          scraperRepositoryProvider.overrideWithValue(_ThrowingScraper()),
+        ],
+        child: MaterialApp.router(routerConfig: router.config()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.push(const NovelsRoute());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Add link'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'example.com/book/1');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NovelImportPage), findsOneWidget);
+    expect(find.text('Unable to extract chapter'), findsOneWidget);
+
+    // Let the failure snack bar play out before the test ends.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('delete also drops the novel\'s offline chapters', (
@@ -382,5 +462,82 @@ void main() {
 
     // A chapter title without a number takes it from the link.
     expect(find.textContaining('#9 · Nightfall'), findsOneWidget);
+  });
+
+  testWidgets('the link icon keeps another link on the novel', (tester) async {
+    await tester.pumpWidget(buildPage(seedEntries()));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Links').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinksSheet), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'site.com/nova/alt');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinksSheet), findsNothing);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(NovelsPage)),
+    );
+    final entries = await container.read(readNovelsProvider.future);
+    final nova = entries.firstWhere(
+      (entry) => entry.key == 'novel:site.com:Nova',
+    );
+
+    expect(nova.links, ['https://site.com/nova/alt']);
+    expect(
+      entries.where((entry) => entry.key == 'novel:other.org:Sol').single.links,
+      isEmpty,
+    );
+  });
+
+  testWidgets('a saved link opens the import flow', (tester) async {
+    final router = AppRouter();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          readNovelsProvider.overrideWith(
+            () => _SeededReadNovels([
+              ReadNovel(
+                key: 'novel:site.com:Nova',
+                url: 'https://site.com/nova/chapter-2',
+                novelTitle: 'Nova',
+                chapterTitle: 'Chapter 2 - The duel',
+                links: const ['https://site.com/nova/alt'],
+                readAt: DateTime.now(),
+              ),
+            ]),
+          ),
+          manhwaSeriesProvider.overrideWith(() => _SeededShelf(const [])),
+          scraperRepositoryProvider.overrideWithValue(_ThrowingScraper()),
+        ],
+        child: MaterialApp.router(routerConfig: router.config()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.push(const NovelsRoute());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Links').first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinksSheet), findsOneWidget);
+    expect(find.text('https://site.com/nova/alt'), findsOneWidget);
+
+    await tester.tap(find.text('https://site.com/nova/alt'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LinksSheet), findsNothing);
+    expect(find.byType(NovelImportPage), findsOneWidget);
+    expect(find.text('Unable to extract chapter'), findsOneWidget);
+
+    // Let the failure snack bar play out before the test ends.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
   });
 }

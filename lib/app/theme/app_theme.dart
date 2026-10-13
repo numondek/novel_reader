@@ -17,7 +17,8 @@ abstract final class AppTheme {
       error: AppColors.error,
     );
 
-    final textColor = isDark ? AppColors.darkOnSurface : AppColors.lightOnSurface;
+    final textColor =
+        isDark ? AppColors.darkOnSurface : AppColors.lightOnSurface;
 
     return ThemeData(
       useMaterial3: true,
@@ -64,7 +65,9 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size.fromHeight(48),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       ),
     );

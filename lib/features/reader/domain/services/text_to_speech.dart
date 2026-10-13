@@ -25,6 +25,5 @@ class TtsVoice {
   final String name;
   final String locale;
 
-  String get label =>
-      locale.isEmpty ? name : '$name ($locale)';
+  String get label => locale.isEmpty ? name : '$name ($locale)';
 }

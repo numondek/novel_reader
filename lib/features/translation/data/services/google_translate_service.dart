@@ -14,9 +14,9 @@ class GoogleTranslateService implements TranslationService {
     Dio? dio,
     int maxAttempts = 3,
     Duration retryBaseDelay = const Duration(milliseconds: 400),
-  })  : _dio = dio ?? _createDio(),
-        _maxAttempts = maxAttempts < 1 ? 1 : maxAttempts,
-        _retryBaseDelay = retryBaseDelay;
+  }) : _dio = dio ?? _createDio(),
+       _maxAttempts = maxAttempts < 1 ? 1 : maxAttempts,
+       _retryBaseDelay = retryBaseDelay;
 
   final Dio _dio;
   final int _maxAttempts;
@@ -35,7 +35,8 @@ class GoogleTranslateService implements TranslationService {
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
               'AppleWebKit/537.36 '
               '(KHTML, like Gecko) '
               'Chrome/120.0 Safari/537.36',
@@ -56,9 +57,7 @@ class GoogleTranslateService implements TranslationService {
     final results = <String>[];
 
     for (final batch in _batches(paragraphs)) {
-      results.addAll(
-        await _translateBatch(batch, targetLanguage),
-      );
+      results.addAll(await _translateBatch(batch, targetLanguage));
     }
 
     return results;
@@ -106,18 +105,13 @@ class GoogleTranslateService implements TranslationService {
     final fallback = <String>[];
 
     for (final paragraph in paragraphs) {
-      fallback.add(
-        (await _request(paragraph, targetLanguage)).trim(),
-      );
+      fallback.add((await _request(paragraph, targetLanguage)).trim());
     }
 
     return fallback;
   }
 
-  Future<String> _request(
-    String text,
-    String targetLanguage,
-  ) async {
+  Future<String> _request(String text, String targetLanguage) async {
     DioException? lastError;
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
@@ -135,9 +129,7 @@ class GoogleTranslateService implements TranslationService {
             'dt': 't',
           },
           data: 'q=${Uri.encodeComponent(text)}',
-          options: Options(
-            contentType: 'application/x-www-form-urlencoded',
-          ),
+          options: Options(contentType: 'application/x-www-form-urlencoded'),
         );
 
         return _parse(response.data);
@@ -206,8 +198,7 @@ class GoogleTranslateService implements TranslationService {
     }
 
     return Duration(
-      milliseconds:
-          _retryBaseDelay.inMilliseconds * attempt * factor,
+      milliseconds: _retryBaseDelay.inMilliseconds * attempt * factor,
     );
   }
 
@@ -240,18 +231,14 @@ class GoogleTranslateService implements TranslationService {
 
   static String _parse(List<dynamic>? data) {
     if (data == null || data.isEmpty || data.first is! List) {
-      throw TranslationException(
-        'Translation failed. Unexpected response.',
-      );
+      throw TranslationException('Translation failed. Unexpected response.');
     }
 
     final segments = data.first as List;
     final buffer = StringBuffer();
 
     for (final segment in segments) {
-      if (segment is List &&
-          segment.isNotEmpty &&
-          segment.first is String) {
+      if (segment is List && segment.isNotEmpty && segment.first is String) {
         buffer.write(segment.first);
       }
     }

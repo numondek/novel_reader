@@ -20,10 +20,7 @@ class _SplashPageState extends State<SplashPage> {
   void initState() {
     super.initState();
 
-    _timer = Timer(
-      const Duration(milliseconds: 1200),
-      _openHome,
-    );
+    _timer = Timer(const Duration(milliseconds: 1200), _openHome);
   }
 
   void _openHome() {
@@ -67,11 +64,7 @@ class _Logo extends StatelessWidget {
         color: const Color(0xFF6C5CE7),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: const Icon(
-        Icons.menu_book_rounded,
-        size: 48,
-        color: Colors.white,
-      ),
+      child: const Icon(Icons.menu_book_rounded, size: 48, color: Colors.white),
     );
   }
 }

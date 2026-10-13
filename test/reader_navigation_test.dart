@@ -20,10 +20,7 @@ class _NoopTranslator implements TranslationService {
 
 class _FakeScraper extends ScraperRepository {
   _FakeScraper()
-      : super(
-          dioClient: DioClient(),
-          adapter: GenericNovelAdapter(),
-        );
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
 
   final List<String> requests = <String>[];
   Completer<void>? gate;
@@ -52,11 +49,11 @@ class _FakeScraper extends ScraperRepository {
 }
 
 ExtractedChapter startChapter() => const ExtractedChapter(
-      title: 'One',
-      paragraphs: ['First paragraph'],
-      url: 'https://example.com/1',
-      nextChapterUrl: 'https://example.com/2',
-    );
+  title: 'One',
+  paragraphs: ['First paragraph'],
+  url: 'https://example.com/1',
+  nextChapterUrl: 'https://example.com/2',
+);
 
 Future<void> flush() => Future<void>.delayed(Duration.zero);
 
@@ -85,12 +82,14 @@ void main() {
       translator: _NoopTranslator(),
       scraper: scraper,
     );
-    controller.openChapter(const ExtractedChapter(
-      title: 'Two',
-      paragraphs: ['p'],
-      url: 'https://example.com/2',
-      previousChapterUrl: 'https://example.com/1',
-    ));
+    controller.openChapter(
+      const ExtractedChapter(
+        title: 'Two',
+        paragraphs: ['p'],
+        url: 'https://example.com/2',
+        previousChapterUrl: 'https://example.com/1',
+      ),
+    );
 
     await controller.previousChapter();
 
@@ -104,11 +103,13 @@ void main() {
       translator: _NoopTranslator(),
       scraper: scraper,
     );
-    controller.openChapter(const ExtractedChapter(
-      title: 'Solo',
-      paragraphs: ['p'],
-      url: 'https://example.com/solo',
-    ));
+    controller.openChapter(
+      const ExtractedChapter(
+        title: 'Solo',
+        paragraphs: ['p'],
+        url: 'https://example.com/solo',
+      ),
+    );
 
     await controller.nextChapter();
     await controller.previousChapter();
@@ -136,8 +137,7 @@ void main() {
     expect(controller.state.chapter?.url, 'https://example.com/2');
   });
 
-  test('failed navigation keeps the chapter and surfaces an error',
-      () async {
+  test('failed navigation keeps the chapter and surfaces an error', () async {
     final scraper = _FakeScraper()..failure = Exception('network down');
     final controller = ReaderController(
       translator: _NoopTranslator(),

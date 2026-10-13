@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../core/extensions/time_extensions.dart';
+import '../../../../core/widgets/add_link_sheet.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../../../core/widgets/links_sheet.dart';
 import '../../../../core/widgets/order_toggle_button.dart';
 import '../../../prefetch/presentation/providers/offline_chapter_store_provider.dart';
 import '../../../prefetch/presentation/providers/offline_chapters_provider.dart';
@@ -41,6 +43,37 @@ class _NovelsPageState extends ConsumerState<NovelsPage> {
     ref.invalidate(prefetchControllerProvider(entry.key));
   }
 
+  /// Takes a pasted link straight into the import flow, so a new
+  /// novel can be added from the list itself and not only from the
+  /// home page.
+  Future<void> _addLink() async {
+    final url = await showAddLinkSheet(context);
+
+    if (url == null || !mounted) return;
+
+    context.router.push(NovelImportRoute(url: url));
+  }
+
+  /// Offers the links the novel already carries — each one opens
+  /// the import flow — and keeps one more under the entry.
+  Future<void> _showLinks(ReadNovel entry) async {
+    final url = await showLinksSheet(
+      context,
+      title: 'Links',
+      hint: 'Open another link of this novel, or add a new one.',
+      links: entry.links,
+      onOpen: (link) {
+        if (!mounted) return;
+
+        context.router.push(NovelImportRoute(url: link));
+      },
+    );
+
+    if (url == null || !mounted) return;
+
+    await ref.read(readNovelsProvider.notifier).addLink(entry.key, url);
+  }
+
   @override
   Widget build(BuildContext context) {
     final novels = ref.watch(novelHistoryProvider);
@@ -52,6 +85,11 @@ class _NovelsPageState extends ConsumerState<NovelsPage> {
       appBar: AppBar(
         title: const Text('Novels'),
         actions: [
+          IconButton(
+            tooltip: 'Add link',
+            icon: const Icon(Icons.add),
+            onPressed: _addLink,
+          ),
           OrderToggleButton(
             descending: _descending,
             onToggle: () => setState(() => _descending = !_descending),
@@ -68,10 +106,15 @@ class _NovelsPageState extends ConsumerState<NovelsPage> {
             ),
         data: (entries) {
           if (entries.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.menu_book_outlined,
               title: 'No read novels yet',
               subtitle: 'Novels you read will appear here.',
+              action: FilledButton.icon(
+                onPressed: _addLink,
+                icon: const Icon(Icons.add),
+                label: const Text('Add a link'),
+              ),
             );
           }
 
@@ -120,6 +163,11 @@ class _NovelsPageState extends ConsumerState<NovelsPage> {
                         onPressed:
                             () => showOfflineChapters(context, novel: entry),
                       ),
+                    IconButton(
+                      tooltip: 'Links',
+                      icon: const Icon(Icons.link),
+                      onPressed: () => _showLinks(entry),
+                    ),
                     IconButton(
                       tooltip: 'Delete',
                       icon: const Icon(Icons.delete_outline),

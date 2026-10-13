@@ -60,8 +60,7 @@ class Chapter {
       title: title ?? this.title,
       paragraphs: paragraphs ?? this.paragraphs,
       chapterNumber: chapterNumber ?? this.chapterNumber,
-      previousChapterUrl:
-          previousChapterUrl ?? this.previousChapterUrl,
+      previousChapterUrl: previousChapterUrl ?? this.previousChapterUrl,
       nextChapterUrl: nextChapterUrl ?? this.nextChapterUrl,
       imageUrls: imageUrls ?? this.imageUrls,
       offlineImagePaths: offlineImagePaths ?? this.offlineImagePaths,

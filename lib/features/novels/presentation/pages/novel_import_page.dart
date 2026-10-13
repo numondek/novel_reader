@@ -9,20 +9,15 @@ import '../controllers/novel_import_controller.dart';
 
 @RoutePage()
 class NovelImportPage extends ConsumerStatefulWidget {
-  const NovelImportPage({
-    super.key,
-    required this.url,
-  });
+  const NovelImportPage({super.key, required this.url});
 
   final String url;
 
   @override
-  ConsumerState<NovelImportPage> createState() =>
-      _NovelImportPageState();
+  ConsumerState<NovelImportPage> createState() => _NovelImportPageState();
 }
 
-class _NovelImportPageState
-    extends ConsumerState<NovelImportPage> {
+class _NovelImportPageState extends ConsumerState<NovelImportPage> {
   @override
   void initState() {
     super.initState();
@@ -36,46 +31,29 @@ class _NovelImportPageState
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(
-      novelImportControllerProvider,
-    );
+    final state = ref.watch(novelImportControllerProvider);
 
-    ref.listen(
-      novelImportControllerProvider,
-      (_, next) {
-        next.whenOrNull(
-          data: (chapter) {
-            if (chapter == null) {
-              return;
-            }
+    ref.listen(novelImportControllerProvider, (_, next) {
+      next.whenOrNull(
+        data: (chapter) {
+          if (chapter == null) {
+            return;
+          }
 
-            if (!context.mounted) return;
+          if (!context.mounted) return;
 
-            context.router.replace(
-              ReaderRoute(
-                chapter: chapter,
-              ),
-            );
-          },
-          error: (error, _) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    error.toString(),
-                  ),
-                ),
-              );
-          },
-        );
-      },
-    );
+          context.router.replace(ReaderRoute(chapter: chapter));
+        },
+        error: (error, _) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(error.toString())));
+        },
+      );
+    });
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Import Chapter'),
-      ),
+      appBar: AppBar(title: const Text('Import Chapter')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -86,10 +64,7 @@ class _NovelImportPageState
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 20),
-                  Text(
-                    'Extracting chapter...',
-                    style: AppTypography.heading,
-                  ),
+                  Text('Extracting chapter...', style: AppTypography.heading),
                   SizedBox(height: 8),
                   Text(
                     'Please wait while we read the webpage.',
@@ -123,15 +98,10 @@ class _NovelImportPageState
                   FilledButton(
                     onPressed: () {
                       ref
-                          .read(
-                            novelImportControllerProvider
-                                .notifier,
-                          )
+                          .read(novelImportControllerProvider.notifier)
                           .extractChapter(widget.url);
                     },
-                    child: const Text(
-                      'Try Again',
-                    ),
+                    child: const Text('Try Again'),
                   ),
                 ],
               );

@@ -45,13 +45,9 @@ class _FakeTts implements TextToSpeech {
 
 class _FakeScraper extends ScraperRepository {
   _FakeScraper()
-      : super(
-          dioClient: DioClient(),
-          adapter: GenericNovelAdapter(),
-        );
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
 
-  final Map<String, ExtractedChapter> chapters =
-      <String, ExtractedChapter>{};
+  final Map<String, ExtractedChapter> chapters = <String, ExtractedChapter>{};
   final List<String> requests = <String>[];
 
   @override
@@ -88,8 +84,7 @@ ExtractedChapter makeChapter(
 }
 
 double scrollPixels(WidgetTester tester) {
-  final scrollable =
-      tester.state<ScrollableState>(find.byType(Scrollable));
+  final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
   return scrollable.position.pixels;
 }
 
@@ -105,9 +100,7 @@ void main() {
           (ref) => ReaderTtsController(tts: fakeTts),
         ),
       ],
-      child: MaterialApp(
-        home: ReaderPage(chapter: chapter),
-      ),
+      child: MaterialApp(home: ReaderPage(chapter: chapter)),
     );
   }
 
@@ -154,52 +147,50 @@ void main() {
     },
   );
 
-  testWidgets(
-    'keeps position when the active paragraph is visible',
-    (tester) async {
-      final chapter = makeChapter('one');
-      scraper.chapters[chapter.url] = chapter;
+  testWidgets('keeps position when the active paragraph is visible', (
+    tester,
+  ) async {
+    final chapter = makeChapter('one');
+    scraper.chapters[chapter.url] = chapter;
 
-      await tester.pumpWidget(build(chapter));
-      await tester.pump();
-      await tester.pump();
+    await tester.pumpWidget(build(chapter));
+    await tester.pump();
+    await tester.pump();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ReaderPage)),
-      );
-      final tts = container.read(readerTtsControllerProvider.notifier);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    final tts = container.read(readerTtsControllerProvider.notifier);
 
-      await tts.play(chapter.paragraphs, startIndex: 1);
-      await tester.pump();
-      await tester.pumpAndSettle();
+    await tts.play(chapter.paragraphs, startIndex: 1);
+    await tester.pump();
+    await tester.pumpAndSettle();
 
-      expect(scrollPixels(tester), 0);
-    },
-  );
+    expect(scrollPixels(tester), 0);
+  });
 
-  testWidgets(
-    'does not scroll when auto-scroll is toggled off',
-    (tester) async {
-      final chapter = makeChapter('one');
-      scraper.chapters[chapter.url] = chapter;
+  testWidgets('does not scroll when auto-scroll is toggled off', (
+    tester,
+  ) async {
+    final chapter = makeChapter('one');
+    scraper.chapters[chapter.url] = chapter;
 
-      await tester.pumpWidget(build(chapter));
-      await tester.pump();
-      await tester.pump();
+    await tester.pumpWidget(build(chapter));
+    await tester.pump();
+    await tester.pump();
 
-      await tester.tap(find.byTooltip('Auto-scroll'));
-      await tester.pump();
+    await tester.tap(find.byTooltip('Auto-scroll'));
+    await tester.pump();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ReaderPage)),
-      );
-      final tts = container.read(readerTtsControllerProvider.notifier);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    final tts = container.read(readerTtsControllerProvider.notifier);
 
-      await tts.play(chapter.paragraphs, startIndex: 45);
-      await tester.pump();
-      await tester.pumpAndSettle();
+    await tts.play(chapter.paragraphs, startIndex: 45);
+    await tester.pump();
+    await tester.pumpAndSettle();
 
-      expect(scrollPixels(tester), 0);
-    },
-  );
+    expect(scrollPixels(tester), 0);
+  });
 }

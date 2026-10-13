@@ -53,11 +53,21 @@ class _ChapterImageState extends ConsumerState<ChapterImage> {
   Widget build(BuildContext context) {
     final path = widget.localPath;
 
+    // Decode at most to the screen's physical width: a picture
+    // wider than the screen only costs memory and repaint time,
+    // and the clamp keeps small pictures at their own size.
+    final cacheWidth =
+        (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .round();
+
     if (path != null) {
       return Image.file(
         File(path),
         fit: BoxFit.contain,
         width: double.infinity,
+        cacheWidth: cacheWidth,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => const _ImageUnavailable(),
       );
     }
@@ -80,6 +90,8 @@ class _ChapterImageState extends ConsumerState<ChapterImage> {
           snapshot.data!,
           fit: BoxFit.contain,
           width: double.infinity,
+          cacheWidth: cacheWidth,
+          gaplessPlayback: true,
           errorBuilder:
               (context, error, stackTrace) => const _ImageUnavailable(),
         );

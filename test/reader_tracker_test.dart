@@ -41,10 +41,7 @@ class _FakeTts implements TextToSpeech {
 
 class _FakeScraper extends ScraperRepository {
   _FakeScraper()
-      : super(
-          dioClient: DioClient(),
-          adapter: GenericNovelAdapter(),
-        );
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
 
   @override
   Future<ExtractedChapter> extractChapter(String url) async {
@@ -56,7 +53,8 @@ final ExtractedChapter trackedChapter = ExtractedChapter(
   title: 'Chapter 1',
   paragraphs: List.generate(
     60,
-    (index) => 'Paragraph $index: '
+    (index) =>
+        'Paragraph $index: '
         'lorem ipsum dolor sit amet consectetur adipiscing elit '
         'sed do eiusmod tempor incididunt ut labore et dolore.',
   ),
@@ -71,9 +69,7 @@ Widget buildApp() {
         (ref) => ReaderTtsController(tts: _FakeTts()),
       ),
     ],
-    child: MaterialApp(
-      home: ReaderPage(chapter: trackedChapter),
-    ),
+    child: MaterialApp(home: ReaderPage(chapter: trackedChapter)),
   );
 }
 
@@ -107,8 +103,7 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('filling the viewport marks the chapter as read',
-      (tester) async {
+  testWidgets('filling the viewport marks the chapter as read', (tester) async {
     await pumpPage(tester);
 
     final scrollable = scrollState(tester);
@@ -123,8 +118,9 @@ void main() {
     expect(fillFraction(tester), 0);
   });
 
-  testWidgets('narration pins the line to the paragraph being read',
-      (tester) async {
+  testWidgets('narration pins the line to the paragraph being read', (
+    tester,
+  ) async {
     await pumpPage(tester);
 
     // Keep the viewport still so only narration can move the line.
@@ -144,8 +140,9 @@ void main() {
     expect(fillFraction(tester), closeTo(46 / 60, 0.01));
   });
 
-  testWidgets('stopping narration falls back to the scroll position',
-      (tester) async {
+  testWidgets('stopping narration falls back to the scroll position', (
+    tester,
+  ) async {
     await pumpPage(tester);
 
     await tester.tap(find.byTooltip('Auto-scroll'));

@@ -24,17 +24,17 @@ class AppRouter extends RootStackRouter {
 
   @override
   List<AutoRoute> get routes => [
-        AutoRoute(page: SplashRoute.page, initial: true),
-        AutoRoute(page: HomeRoute.page),
-        AutoRoute(page: NovelImportRoute.page),
-        AutoRoute(page: NovelsRoute.page),
-        AutoRoute(page: ScraperRoute.page),
-        AutoRoute(page: TranslationRoute.page),
-        AutoRoute(page: ReaderRoute.page),
-        AutoRoute(page: AudioRoute.page),
-        AutoRoute(page: PrefetchRoute.page),
-        AutoRoute(page: LibraryRoute.page),
-        AutoRoute(page: PdfReaderRoute.page),
-        AutoRoute(page: SettingsRoute.page),
-      ];
+    AutoRoute(page: SplashRoute.page, initial: true),
+    AutoRoute(page: HomeRoute.page),
+    AutoRoute(page: NovelImportRoute.page),
+    AutoRoute(page: NovelsRoute.page),
+    AutoRoute(page: ScraperRoute.page),
+    AutoRoute(page: TranslationRoute.page),
+    AutoRoute(page: ReaderRoute.page),
+    AutoRoute(page: AudioRoute.page),
+    AutoRoute(page: PrefetchRoute.page),
+    AutoRoute(page: LibraryRoute.page),
+    AutoRoute(page: PdfReaderRoute.page),
+    AutoRoute(page: SettingsRoute.page),
+  ];
 }

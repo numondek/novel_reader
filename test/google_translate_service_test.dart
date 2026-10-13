@@ -96,77 +96,68 @@ void main() {
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    final result = await service.translateParagraphs(
-      ['AAA', 'BBB'],
-      targetLanguage: 'en',
-    );
+    final result = await service.translateParagraphs([
+      'AAA',
+      'BBB',
+    ], targetLanguage: 'en');
 
     expect(result, ['line one', 'line two']);
     expect(adapter.queries, ['AAA\nBBB']);
     expect(adapter.methods, everyElement('POST'));
   });
 
-  test('falls back to per-paragraph when line count differs',
-      () async {
+  test('falls back to per-paragraph when line count differs', () async {
     final adapter = _FakeAdapter(
-      (q) => q.contains('\n')
-          ? const FakeResponse('[[["merged","x"]],null,"zh-CN"]')
-          : FakeResponse(singleLineResponse('T($q)')),
+      (q) =>
+          q.contains('\n')
+              ? const FakeResponse('[[["merged","x"]],null,"zh-CN"]')
+              : FakeResponse(singleLineResponse('T($q)')),
     );
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    final result = await service.translateParagraphs(
-      ['AAA', 'BBB'],
-      targetLanguage: 'en',
-    );
+    final result = await service.translateParagraphs([
+      'AAA',
+      'BBB',
+    ], targetLanguage: 'en');
 
     expect(result, ['T(AAA)', 'T(BBB)']);
     expect(adapter.queries, ['AAA\nBBB', 'AAA', 'BBB']);
   });
 
   test('splits oversized chapters into batches', () async {
-    final adapter = _FakeAdapter(
-      (q) => FakeResponse(singleLineResponse('T')),
-    );
+    final adapter = _FakeAdapter((q) => FakeResponse(singleLineResponse('T')));
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    final result = await service.translateParagraphs(
-      ['a' * 3000, 'b' * 3000],
-      targetLanguage: 'en',
-    );
+    final result = await service.translateParagraphs([
+      'a' * 3000,
+      'b' * 3000,
+    ], targetLanguage: 'en');
 
     expect(result, ['T', 'T']);
     expect(adapter.queries.length, 2);
   });
 
   test('returns empty list for no paragraphs', () async {
-    final adapter = _FakeAdapter(
-      (_) => const FakeResponse('[]'),
-    );
+    final adapter = _FakeAdapter((_) => const FakeResponse('[]'));
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,
     );
 
-    final result = await service.translateParagraphs(
-      [],
-      targetLanguage: 'en',
-    );
+    final result = await service.translateParagraphs([], targetLanguage: 'en');
 
     expect(result, isEmpty);
     expect(adapter.queries, isEmpty);
   });
 
   test('maps HTTP errors to a friendly message', () async {
-    final adapter = _FakeAdapter(
-      (_) => const FakeResponse('{}', status: 500),
-    );
+    final adapter = _FakeAdapter((_) => const FakeResponse('{}', status: 500));
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,
@@ -188,9 +179,10 @@ void main() {
   test('retries a rate-limited request and succeeds', () async {
     var calls = 0;
     final adapter = _FakeAdapter(
-      (_) => ++calls == 1
-          ? const FakeResponse('{}', status: 429)
-          : FakeResponse(singleLineResponse('T(AAA)')),
+      (_) =>
+          ++calls == 1
+              ? const FakeResponse('{}', status: 429)
+              : FakeResponse(singleLineResponse('T(AAA)')),
     );
 
     final service = GoogleTranslateService(
@@ -198,19 +190,16 @@ void main() {
       retryBaseDelay: Duration.zero,
     );
 
-    final result = await service.translateParagraphs(
-      ['AAA'],
-      targetLanguage: 'en',
-    );
+    final result = await service.translateParagraphs([
+      'AAA',
+    ], targetLanguage: 'en');
 
     expect(result, ['T(AAA)']);
     expect(calls, 2);
   });
 
   test('gives up after maxAttempts with a rate-limit message', () async {
-    final adapter = _FakeAdapter(
-      (_) => const FakeResponse('{}', status: 429),
-    );
+    final adapter = _FakeAdapter((_) => const FakeResponse('{}', status: 429));
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,
@@ -232,9 +221,7 @@ void main() {
   });
 
   test('rejects unexpected response shapes', () async {
-    final adapter = _FakeAdapter(
-      (_) => const FakeResponse('[]'),
-    );
+    final adapter = _FakeAdapter((_) => const FakeResponse('[]'));
 
     final service = GoogleTranslateService(
       dio: Dio()..httpClientAdapter = adapter,

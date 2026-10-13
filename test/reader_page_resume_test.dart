@@ -22,10 +22,7 @@ class _SeededReadNovels extends ReadNovelsController {
 
 class _FakeScraper extends ScraperRepository {
   _FakeScraper()
-      : super(
-          dioClient: DioClient(),
-          adapter: GenericNovelAdapter(),
-        );
+    : super(dioClient: DioClient(), adapter: GenericNovelAdapter());
 
   @override
   Future<ExtractedChapter> extractChapter(String url) async {
@@ -37,7 +34,8 @@ final ExtractedChapter longChapter = ExtractedChapter(
   title: 'Chapter 1',
   paragraphs: List.generate(
     30,
-    (index) => 'Paragraph $index: '
+    (index) =>
+        'Paragraph $index: '
         'lorem ipsum dolor sit amet consectetur adipiscing elit '
         'sed do eiusmod tempor incididunt ut labore et dolore.',
   ),
@@ -62,9 +60,7 @@ Widget buildApp({required List<ReadNovel> seed}) {
       readNovelsProvider.overrideWith(() => _SeededReadNovels(seed)),
       scraperRepositoryProvider.overrideWithValue(_FakeScraper()),
     ],
-    child: MaterialApp(
-      home: ReaderPage(chapter: longChapter),
-    ),
+    child: MaterialApp(home: ReaderPage(chapter: longChapter)),
   );
 }
 
@@ -76,47 +72,38 @@ double scrollPixels(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets(
-    'reopening a saved chapter resumes at the stored paragraph',
-    (tester) async {
-      await tester.pumpWidget(
-        buildApp(seed: [savedEntry(paragraphIndex: 10)]),
-      );
+  testWidgets('reopening a saved chapter resumes at the stored paragraph', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildApp(seed: [savedEntry(paragraphIndex: 10)]));
 
-      await tester.pumpAndSettle();
-      await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
-      expect(scrollPixels(tester), greaterThan(0));
+    expect(scrollPixels(tester), greaterThan(0));
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ReaderPage)),
-      );
-      final state = container.read(readerControllerProvider);
-      expect(state.activeParagraph, 10);
-    },
-  );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    final state = container.read(readerControllerProvider);
+    expect(state.activeParagraph, 10);
+  });
 
-  testWidgets(
-    'scrolling saves the paragraph being read',
-    (tester) async {
-      await tester.pumpWidget(buildApp(seed: [savedEntry()]));
-      await tester.pumpAndSettle();
+  testWidgets('scrolling saves the paragraph being read', (tester) async {
+    await tester.pumpWidget(buildApp(seed: [savedEntry()]));
+    await tester.pumpAndSettle();
 
-      expect(scrollPixels(tester), 0);
+    expect(scrollPixels(tester), 0);
 
-      await tester.drag(
-        find.byType(Scrollable).first,
-        const Offset(0, -2500),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      await tester.pump(const Duration(milliseconds: 100));
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -2500));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(ReaderPage)),
-      );
-      final entries = await container.read(readNovelsProvider.future);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ReaderPage)),
+    );
+    final entries = await container.read(readNovelsProvider.future);
 
-      expect(entries.single.paragraphIndex, greaterThan(0));
-    },
-  );
+    expect(entries.single.paragraphIndex, greaterThan(0));
+  });
 }

@@ -52,8 +52,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Timer? _scrollTimer;
 
   /// One tick of the continuous scroll: [AppSettings.autoScrollSpeed]
-  /// pixels per second, advanced this often.
-  static const Duration _scrollTick = Duration(milliseconds: 50);
+  /// pixels per second, advanced this often. Once per display frame,
+  /// so the strip glides instead of stepping visibly.
+  static const Duration _scrollTick = Duration(milliseconds: 16);
 
   @override
   void initState() {
@@ -378,13 +379,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
             Padding(
               key: _paragraphKey(index),
               padding: const EdgeInsets.only(bottom: 2),
-              child: ChapterImage(
-                url: chapter.imageUrls[index],
-                localPath:
-                    (paths != null && index < paths.length)
-                        ? paths[index]
-                        : null,
-                referer: chapter.url,
+              // Each picture repaints on its own layer, so scrolling
+              // re-composites the strip instead of redrawing every
+              // image on the page.
+              child: RepaintBoundary(
+                child: ChapterImage(
+                  url: chapter.imageUrls[index],
+                  localPath:
+                      (paths != null && index < paths.length)
+                          ? paths[index]
+                          : null,
+                  referer: chapter.url,
+                ),
               ),
             ),
         ],
@@ -643,17 +649,22 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   int? _topmostParagraph() {
     if (_paragraphKeys.isEmpty) return null;
 
+    // The scroll view is the same for every paragraph, so it is
+    // looked up once instead of once per paragraph on each scroll
+    // event — the hot path while the strip moves.
+    RenderBox? viewport;
     int? result;
 
     for (final entry in _paragraphKeys.entries) {
       final context = entry.value.currentContext;
       if (context == null) continue;
 
-      final box = context.findRenderObject();
-      final scrollable = Scrollable.of(context);
-      final viewport = scrollable.context.findRenderObject();
+      viewport ??= _viewportOf(context);
+      if (viewport == null) continue;
 
-      if (box is! RenderBox || viewport is! RenderBox) continue;
+      final box = context.findRenderObject();
+
+      if (box is! RenderBox) continue;
       if (!box.attached ||
           !box.hasSize ||
           !viewport.attached ||
@@ -671,6 +682,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     }
 
     return result;
+  }
+
+  /// The scroll viewport [context] hangs from, or `null` when it
+  /// has no usable box.
+  RenderBox? _viewportOf(BuildContext context) {
+    final viewport = Scrollable.of(context).context.findRenderObject();
+
+    return viewport is RenderBox ? viewport : null;
   }
 
   void _scrollToTop() {

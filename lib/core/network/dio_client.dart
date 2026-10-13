@@ -14,19 +14,19 @@ class PageFetchException implements Exception {
 
 class DioClient {
   DioClient()
-      : dio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 15),
-            receiveTimeout: const Duration(seconds: 30),
-            sendTimeout: const Duration(seconds: 15),
-            headers: {
-              'User-Agent': desktopUserAgent,
-              'Accept':
-                  'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.9',
-            },
-          ),
-        );
+    : dio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 15),
+          headers: {
+            'User-Agent': desktopUserAgent,
+            'Accept':
+                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        ),
+      );
 
   static const String desktopUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
@@ -42,18 +42,14 @@ class DioClient {
 
   final Dio dio;
 
-  Future<String> getHtml(
-    String url, {
-    Map<String, String>? headers,
-  }) async {
+  Future<String> getHtml(String url, {Map<String, String>? headers}) async {
     final uri = Uri.tryParse(url);
 
     try {
       return await _fetch(url, headers);
     } on DioException catch (error) {
       final status = error.response?.statusCode;
-      final isRetryable =
-          status == 403 || status == 429 || status == 408;
+      final isRetryable = status == 403 || status == 429 || status == 408;
 
       if (!isRetryable) {
         throw _pageError(error);
@@ -63,8 +59,7 @@ class DioClient {
         return await _fetch(url, {
           ...?headers,
           'User-Agent': mobileUserAgent,
-          if (uri != null && uri.hasAuthority)
-            'Referer': '${uri.origin}/',
+          if (uri != null && uri.hasAuthority) 'Referer': '${uri.origin}/',
         });
       } on DioException catch (retryError) {
         throw _pageError(retryError);
@@ -79,16 +74,10 @@ class DioClient {
     );
   }
 
-  Future<String> _fetch(
-    String url,
-    Map<String, String>? headers,
-  ) async {
+  Future<String> _fetch(String url, Map<String, String>? headers) async {
     final response = await dio.get<String>(
       url,
-      options: Options(
-        headers: headers,
-        responseType: ResponseType.plain,
-      ),
+      options: Options(headers: headers, responseType: ResponseType.plain),
     );
 
     final status = response.statusCode;
@@ -103,9 +92,7 @@ class DioClient {
     final data = response.data;
 
     if (data == null || data.isEmpty) {
-      throw const PageFetchException(
-        'The webpage returned empty content.',
-      );
+      throw const PageFetchException('The webpage returned empty content.');
     }
 
     return data;

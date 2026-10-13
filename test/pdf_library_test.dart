@@ -69,14 +69,12 @@ void main() {
 
     // An unknown page count keeps the stored total.
     await controller().savePosition(item.path, page: 8);
-    final refreshed =
-        (await container.read(pdfLibraryProvider.future)).single;
+    final refreshed = (await container.read(pdfLibraryProvider.future)).single;
     expect(refreshed.lastPage, 8);
     expect(refreshed.pageCount, 12);
   });
 
-  test('savePosition ignores files that are not in the library',
-      () async {
+  test('savePosition ignores files that are not in the library', () async {
     await controller().savePosition('/missing.pdf', page: 3, pageCount: 9);
 
     final list = await container.read(pdfLibraryProvider.future);
@@ -88,10 +86,7 @@ void main() {
       sourcePath: '/1.pdf',
       fileName: 'one.pdf',
     );
-    await controller().add(
-      sourcePath: '/2.pdf',
-      fileName: 'two.pdf',
-    );
+    await controller().add(sourcePath: '/2.pdf', fileName: 'two.pdf');
 
     await controller().remove(first.path);
 

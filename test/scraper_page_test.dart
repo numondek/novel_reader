@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:novel_reader/app/router/app_router.dart';
 import 'package:novel_reader/core/network/dio_client.dart';
 import 'package:novel_reader/core/widgets/empty_state.dart';
+import 'package:novel_reader/core/widgets/links_sheet.dart';
 import 'package:novel_reader/features/novels/domain/models/read_novel.dart';
 import 'package:novel_reader/features/novels/presentation/providers/read_novels_provider.dart';
 import 'package:novel_reader/features/prefetch/presentation/providers/offline_chapter_store_provider.dart';
@@ -256,6 +257,26 @@ void main() {
     expect(find.text('Chapter 1'), findsOneWidget);
     expect(find.text('Chapter 2'), findsOneWidget);
     expect(find.text('Action'), findsNothing);
+  });
+
+  testWidgets('the app bar plus opens the same link flow', (tester) async {
+    scraper.html = seriesHtml;
+
+    await tester.pumpWidget(buildApp());
+    await openScraper(tester);
+
+    await tester.tap(find.byTooltip('Add link'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add a link'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2));
+
+    await tester.enterText(find.byType(TextField).last, seriesUrl);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('2 chapters · 0 saved'), findsOneWidget);
   });
 
   testWidgets('saving a chapter downloads it and marks it saved', (
@@ -558,5 +579,77 @@ void main() {
 
     final history = await container.read(readNovelsProvider.future);
     expect(history, isEmpty);
+  });
+
+  testWidgets('a shelf card merges another contents page into its list', (
+    tester,
+  ) async {
+    const extraUrl = 'https://example.com/manhwa/demo-part2';
+
+    scraper.html = seriesHtml;
+    scraper.pages[extraUrl] = '''
+<html><body>
+  <a href="/manhwa/demo-part2/chapter-3">Chapter 3</a>
+  <a href="/manhwa/demo-part2/chapter-4">Chapter 4</a>
+</body></html>
+''';
+
+    await tester.pumpWidget(buildApp());
+    await openScraper(tester);
+    await openUrl(tester, seriesUrl);
+
+    expect(find.text('2 chapters · 0 saved'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('My manhwa'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Links'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Links'));
+    await tester.pumpAndSettle();
+
+    final sheet = find.byType(LinksSheet);
+
+    expect(
+      find.descendant(of: sheet, matching: find.text('Contents links')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text(seriesUrl)),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byType(TextField).last, extraUrl);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    // The series reopens with both pages' chapters in one list.
+    expect(find.text('4 chapters · 0 saved'), findsOneWidget);
+    expect(find.text('Chapter 1'), findsOneWidget);
+    expect(find.text('Chapter 2'), findsOneWidget);
+    expect(find.text('Chapter 3'), findsOneWidget);
+    expect(find.text('Chapter 4'), findsOneWidget);
+
+    // The extra page stays on the card for the next opening.
+    await tester.tap(find.byTooltip('My manhwa'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Links'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: sheet, matching: find.text(seriesUrl)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: sheet, matching: find.text(extraUrl)),
+      findsOneWidget,
+    );
+
+    // Dismissing without adding changes nothing.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GridView), findsOneWidget);
   });
 }

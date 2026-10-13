@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../settings/presentation/providers/settings_provider.dart';
-import '../../../translation/domain/language_detector.dart';
 import '../../data/services/flutter_text_to_speech.dart';
 import '../../domain/services/media_session.dart';
 import '../../domain/services/playback_interruptions.dart';
@@ -155,9 +154,7 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState>
       return;
     }
 
-    final language = containsCjk(paragraphs[index]) ? 'zh-CN' : 'en-US';
-
-    await _applyVoiceSettings(language);
+    await _applyVoiceSettings();
 
     if (title != null) {
       _mediaSession.setChapterTitle(title);
@@ -222,10 +219,15 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState>
     return chunks;
   }
 
-  /// Applies the user's rate and voice preferences, falling back to
-  /// the language default when no voice matches the language.
-  Future<void> _applyVoiceSettings(String language) async {
+  /// Applies the user's language, rate and voice preferences. The
+  /// language follows the selected voice and never the text being
+  /// read, so a Chinese letter or symbol in a paragraph cannot swap
+  /// the voice mid-narration.
+  Future<void> _applyVoiceSettings() async {
     final settings = _settings();
+
+    final locale = settings.voiceLocale ?? '';
+    final language = locale.isNotEmpty ? locale : 'en-US';
 
     await _tts.setLanguage(language);
     await _tts.setSpeechRate(settings.speechRate);
@@ -235,21 +237,11 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState>
       return;
     }
 
-    final locale = settings.voiceLocale ?? '';
-    if (locale.isNotEmpty && !_sameLanguage(locale, language)) {
-      // The chosen voice cannot read this language.
-      return;
-    }
-
     try {
       await _tts.setVoice(name, locale);
     } catch (_) {
       // Voice unavailable: keep the language default.
     }
-  }
-
-  bool _sameLanguage(String a, String b) {
-    return a.split('-').first.toLowerCase() == b.split('-').first.toLowerCase();
   }
 
   Future<void> pause() async {
@@ -335,12 +327,9 @@ class ReaderTtsController extends StateNotifier<ReaderTtsState>
       return;
     }
 
-    final text = _paragraphs[next];
     state = state.copyWith(currentIndex: next);
 
-    final language = containsCjk(text) ? 'zh-CN' : 'en-US';
-
-    _applyVoiceSettings(language).whenComplete(() {
+    _applyVoiceSettings().whenComplete(() {
       if (!mounted || !state.isPlaying || state.currentIndex != next) {
         return;
       }

@@ -128,6 +128,36 @@ void main() {
     expect(list.single.paragraphIndex, 40);
   });
 
+  test('a kept link survives later chapter opens and repeats', () async {
+    await controller().record(
+      'https://site.com/nova/chapter-1',
+      'Chapter 1',
+      novelTitle: 'Nova',
+    );
+
+    await controller().addLink('novel:site.com:Nova', 'site.com/nova/alt');
+    // The same link normalized again is not added twice, and a key
+    // nothing holds changes nothing.
+    await controller().addLink(
+      'novel:site.com:Nova',
+      'https://site.com/nova/alt',
+    );
+    await controller().addLink('novel:site.com:Gone', 'site.com/other');
+
+    await controller().record(
+      'https://site.com/nova/chapter-2',
+      'Chapter 2',
+      novelTitle: 'Nova',
+    );
+
+    final list = await container.read(readNovelsProvider.future);
+    final nova = list.singleWhere(
+      (entry) => entry.key == 'novel:site.com:Nova',
+    );
+
+    expect(nova.links, ['https://site.com/nova/alt']);
+  });
+
   test('resets the position when another chapter opens', () async {
     await controller().record(
       'https://site.com/nova/chapter-2',
@@ -521,6 +551,7 @@ void main() {
         'https://site.com/nova/chapter-1': [5, 9],
         'https://site.com/nova/chapter-2': [17, 19],
       },
+      links: const ['https://site.com/nova/alt'],
       readAt: DateTime.fromMillisecondsSinceEpoch(1735689600000),
     );
 
@@ -539,6 +570,7 @@ void main() {
     expect(decoded.paragraphIndex, 17);
     expect(decoded.paragraphCount, 19);
     expect(decoded.chapterProgress, entry.chapterProgress);
+    expect(decoded.links, entry.links);
     expect(decoded.readAt, entry.readAt);
     expect(decoded.host, 'site.com');
   });
@@ -559,6 +591,7 @@ void main() {
     expect(decoded.paragraphIndex, 0);
     expect(decoded.paragraphCount, 0);
     expect(decoded.chapterProgress, isEmpty);
+    expect(decoded.links, isEmpty);
     expect(decoded.isManhwa, isFalse);
   });
 }

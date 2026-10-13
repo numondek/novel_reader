@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/storage/database.dart';
+import '../../../../core/utils/url_utils.dart';
 import '../../../prefetch/presentation/providers/offline_chapter_store_provider.dart';
 import '../../domain/models/manhwa_series.dart';
 
@@ -92,12 +93,26 @@ class ManhwaSeriesController extends AsyncNotifier<List<ManhwaSeries>> {
       final current = await _loaded();
       final openedAt = _nextOpenedAt();
 
+      // Reopening must not drop the extra contents pages the shelf
+      // kept for this series on an earlier opening.
+      var extraUrls = series.extraUrls;
+
+      if (extraUrls.isEmpty) {
+        for (final other in current) {
+          if (other.novelKey == series.novelKey) {
+            extraUrls = other.extraUrls;
+            break;
+          }
+        }
+      }
+
       final entry = ManhwaSeries(
         novelKey: series.novelKey,
         title: series.title,
         sourceUrl: series.sourceUrl,
         coverUrl: series.coverUrl,
         coverPath: series.coverPath,
+        extraUrls: extraUrls,
         openedAt: openedAt,
       );
 
@@ -116,6 +131,37 @@ class ManhwaSeriesController extends AsyncNotifier<List<ManhwaSeries>> {
       await _save(
         current.where((entry) => entry.novelKey != novelKey).toList(),
       );
+    });
+  }
+
+  /// Keeps another contents page on [novelKey]: opening the series
+  /// merges that page's chapters into its list. An unreadable URL, a
+  /// link the entry already carries, or a series no longer on the
+  /// shelf changes nothing.
+  Future<void> addContentsUrl(String novelKey, String rawUrl) {
+    return _enqueue(() async {
+      final url = normalizeUrl(rawUrl);
+      if (url == null) {
+        return;
+      }
+
+      final current = await _loaded();
+      final updated = <ManhwaSeries>[];
+      var found = false;
+
+      for (final entry in current) {
+        if (entry.novelKey != novelKey || entry.extraUrls.contains(url)) {
+          updated.add(entry);
+          continue;
+        }
+
+        found = true;
+        updated.add(entry.copyWith(extraUrls: [...entry.extraUrls, url]));
+      }
+
+      if (found) {
+        await _save(updated);
+      }
     });
   }
 
